@@ -1,0 +1,28 @@
+{
+  "name": "pi-memory-mnemosyne",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mnemosyne semantic memory extension for pi (MCP over streamable HTTP)",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "smoke": "node smoke.ts"
+  },
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": ">=0.80.10",
+    "@earendil-works/pi-coding-agent": ">=0.79.1",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": { "optional": true },
+    "@earendil-works/pi-coding-agent": { "optional": true },
+    "typebox": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
+  }
+}

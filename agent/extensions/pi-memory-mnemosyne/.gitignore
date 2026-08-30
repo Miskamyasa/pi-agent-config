@@ -1,0 +1,40 @@
+# AI Agents
+.claude/
+.cursor/
+.codex/
+.gemini/
+.augment/
+.aider/
+.cline/
+.copilot/
+.windsurf/
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Env
+.env
+.env.*
+!.env.example
+.pi/settings.json
+
+# Build
+dist/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Release-time native artifacts
+packages/pi-video-gen/platforms/ffmpeg-*/bin/
+packages/pi-video-gen/platforms/ffmpeg-*/LICENSE
+packages/pi-video-gen/platforms/ffmpeg-*/GPLv2.txt
+packages/pi-video-gen/platforms/ffmpeg-*/SOURCE.md
+packages/pi-video-gen/platforms/ffmpeg-*/ZLIB_LICENSE.txt
+packages/pi-video-gen/platforms/ffmpeg-*/source/
+.video-gen/
+video-output/

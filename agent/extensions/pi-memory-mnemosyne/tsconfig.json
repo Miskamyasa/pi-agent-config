@@ -1,0 +1,26 @@
+{
+  // Typecheck-only config for the extension. The pi host provides the peer
+  // packages at runtime (never vendored here — a local copy would load as a
+  // duplicate module instance), so their types resolve via paths to the pi
+  // packages workspace.
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022",
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "lib": ["es2022"],
+    "paths": {
+      "@earendil-works/*": [
+        "/Users/dzaitsev/.config/pi/npm/node_modules/@earendil-works/*"
+      ],
+      "typebox": [
+        "/Users/dzaitsev/.config/pi/npm/node_modules/typebox/build/index.d.mts"
+      ]
+    }
+  },
+  "include": ["./*.ts"]
+}
