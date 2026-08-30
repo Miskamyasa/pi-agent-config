@@ -1,0 +1,13 @@
+{
+  "name": "pi-extensions",
+  "private": true,
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.84.3",
+    "@earendil-works/pi-tui": "^0.84.3",
+    "@miskamyasa/pi-model-project-persist": "1.0.0",
+    "pi-mcp-adapter": "2.26.0",
+    "pi-ollama-cloud": "^0.9.0",
+    "pi-powerline-footer": "0.7.0",
+    "pi-tool-display": "0.5.0"
+  }
+}

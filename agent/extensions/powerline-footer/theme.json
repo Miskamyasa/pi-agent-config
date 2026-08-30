@@ -1,0 +1,18 @@
+{
+  "colors": {
+    "pi": "#ff5500",
+    "model": "#ffa500",
+    "shellMode": "accent",
+    "thinking": "thinkingOff",
+    "thinkingMinimal": "thinkingMinimal",
+    "thinkingLow": "thinkingLow",
+    "thinkingMedium": "thinkingMedium",
+    "context": "#00afaf",
+    "contextWarn": "warning",
+    "contextError": "error"
+  },
+  "icons": {
+    "auto": "↯",
+    "warning": ""
+  }
+}

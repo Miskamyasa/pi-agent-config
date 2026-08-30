@@ -1,0 +1,91 @@
+{
+  "lastChangelogVersion": "0.84.4",
+  "defaultProvider": "neuralwatt",
+  "defaultModel": "glm-5.2-short",
+  "defaultThinkingLevel": "medium",
+  "quietStartup": true,
+  "theme": "e-ink",
+  "enableInstallTelemetry": true,
+  "packages": [
+    "npm:@miskamyasa/pi-model-project-persist@1.0.0",
+    "npm:pi-ollama-cloud",
+    "npm:pi-mcp-adapter",
+    "npm:pi-powerline-footer",
+    "npm:pi-tool-display"
+  ],
+  "powerline": {
+    "preset": "default",
+    "model": {
+      "display": "qualified"
+    },
+    "customItems": [
+      {
+        "id": "mem",
+        "statusKey": "mnemo"
+      },
+      {
+        "id": "mcp",
+        "statusKey": "mcp"
+      }
+    ],
+    "layout": {
+      "left": [
+        "model",
+        "thinking"
+      ],
+      "right": [
+        "context_pct",
+        "cost"
+      ],
+      "secondary": [
+        "custom:mem",
+        "custom:mcp"
+      ]
+    },
+    "placement": "below"
+  },
+  "hideThinkingBlock": true,
+  "enabledModels": [
+    "cpa/nube/deepseek-v4-flash",
+    "cpa/nube/glm-5.2",
+    "cpa/nube/kimi-k3",
+    "cpa/deepseek/deepseek-v4-flash",
+    "cpa/deepseek/deepseek-v4-pro",
+    "cpa/neuralwatt/deepseek-v4-flash",
+    "cpa/neuralwatt/glm-5.2-short",
+    "openai/gpt-5.6-sol",
+    "anthropic/claude-opus-5",
+    "ollama-cloud/gpt-oss:120b"
+  ],
+  "enableSkillCommands": false,
+  "showHardwareCursor": false,
+  "steeringMode": "all",
+  "followUpMode": "all",
+  "collapseChangelog": true,
+  "treeFilterMode": "all",
+  "compaction": {
+    "enabled": false
+  },
+  "outputPad": 0,
+  "showCacheMissNotices": true,
+  "defaultProjectTrust": "ask",
+  "terminal": {
+    "showImages": true,
+    "showTerminalProgress": false
+  },
+  "editorPaddingX": 0,
+  "images": {
+    "autoResize": true
+  },
+  "pi-memory-mnemosyne": {
+    "url": "https://mnemosyne.paragraph.red/mcp",
+    "token": "${MEMORY_MCP_TOKEN}",
+    "memoryMode": "hybrid",
+    "topK": 5,
+    "bank": "default",
+    "bankScope": "exact",
+    "consolidateOnShutdown": true,
+    "captureTurns": true,
+    "distillModel": "openai/gpt-5.6-luna"
+  }
+}
