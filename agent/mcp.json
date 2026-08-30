@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "docs-mcp-server": {
+      "url": "https://docs-mcp.paragraph.red/mcp"
+    }
+  }
+}
