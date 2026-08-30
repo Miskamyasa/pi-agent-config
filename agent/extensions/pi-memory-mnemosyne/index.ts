@@ -8,7 +8,10 @@
  *
  * Passive side: on input, a recall is prefetched in the background; on
  * before_agent_start the result is injected as a custom message on the user
- * channel (never the system prompt) and wrapped as untrusted data. Turn
+ * channel (never the system prompt) and wrapped as untrusted data. Injection
+ * shows at most the 3 highest-ranked memories not yet recalled this session;
+ * duplicates are skipped and the block is omitted when nothing is new. The
+ * seen-ids map resets on session start and after compaction. Turn
  * capture is OPT-IN via "captureTurns": true — each finished turn is first
  * redacted, then distilled client-side by a registry model ("distillModel",
  * default openai/gpt-5.6-luna) into 0-5 durable facts, and only those facts
@@ -48,6 +51,7 @@ const STATUS_KEY = "mnemo";
 const MAX_ENTRY_CHARS = 1_000;
 const MAX_RECALL_BYTES = 8 * 1024;
 const MAX_RECALL_LINES = 50;
+const MAX_RECALL_ENTRIES = 3;
 
 /** Stored rows are one-line facts; only the trust wrappers are
  * display-only clutter. The model still sees the raw content. */
@@ -70,6 +74,9 @@ interface PendingRecall {
 export default function mnemosyneExtension(pi: ExtensionAPI) {
   let provider: MnemosyneProvider | undefined;
   let prefetch: PendingRecall | null = null;
+  // Ids of memories injected this session; later turns skip them to avoid
+  // re-injecting facts the model already has in context.
+  let recalledIds = new Set<string>();
   let bank = "default";
   let topK = 5;
   let captureTurns = false;
@@ -86,6 +93,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     const epoch = ++sessionEpoch;
     provider = undefined;
     prefetch = null;
+    recalledIds = new Set<string>();
 
     const config = loadMnemosyneConfig();
     if (!config) {
@@ -181,9 +189,11 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
       pending.promise,
       new Promise<MemoryItem[]>((resolve) => setTimeout(() => resolve([]), 3000)),
     ]);
-    const lines = memories
-      .filter((m) => m.memory.trim())
-      .map((m) => `- ${formatRecalledMemory(truncateLine(m.memory.trim(), MAX_ENTRY_CHARS).text)}`);
+    const fresh = memories
+      .filter((m) => m.memory.trim() && !recalledIds.has(m.id))
+      .slice(0, MAX_RECALL_ENTRIES);
+    fresh.forEach((m) => recalledIds.add(m.id));
+    const lines = fresh.map((m) => `- ${formatRecalledMemory(truncateLine(m.memory.trim(), MAX_ENTRY_CHARS).text)}`);
     if (lines.length === 0) return;
     return {
       message: {
@@ -227,8 +237,15 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     },
   );
 
+  pi.on("session_compact", () => {
+    // Compaction summarizes old recall blocks out of context, so facts shown
+    // before compaction become offerable again.
+    recalledIds.clear();
+  });
+
   pi.on("session_shutdown", async () => {
     sessionEpoch++;
+    recalledIds.clear();
     await pendingWrite;
     if (provider && consolidateOnShutdown) {
       // Consolidation is server-side maintenance; never fail shutdown on it.
