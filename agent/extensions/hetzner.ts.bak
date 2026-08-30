@@ -1,0 +1,190 @@
+import type { ExtensionAPI, ExtensionContext, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+
+// ─── Configuration ──────────────────────────────────────────────────
+
+const BASE_URL = "https://inference.hetzner.com/api/v1";
+
+// Settings file, stores the cached model catalog.
+const STATE_PATH = join(getAgentDir(), "pi-hetzner.json");
+
+// Catalog lifetime; the endpoint sends no Cache-Control hint.
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h.
+
+// Fallbacks when /models omits these fields.
+const DEFAULT_CONTEXT_WINDOW = 262144; // 256k.
+const DEFAULT_MAX_OUTPUT_TOKENS = 32768;
+
+// Seed catalog so the provider is selectable before the first authenticated fetch.
+const SEED_MODELS: ProviderModelConfig[] = [buildModel({ id: "Qwen/Qwen3.6-35B-A3B-FP8" })];
+
+const EMPTY_STATE: State = { modelsFetchedAt: null, modelsExpireAt: null, models: null };
+
+// In-memory mirror of STATE_PATH; readState() replaces it at startup.
+let state: State = { ...EMPTY_STATE };
+
+// Dedupes concurrent refresh attempts (e.g. /hetzner:refresh during startup).
+let refreshInFlight: Promise<ProviderModelConfig[]> | null = null;
+
+// ─── Entry Point ────────────────────────────────────────────────────
+
+export default async function (pi: ExtensionAPI) {
+  // Register the cached catalog immediately; session_start refetches if stale.
+  state = await readState();
+  registerModels(pi, state.models ?? SEED_MODELS);
+
+  // On process start/reload, refresh the catalog if stale.
+  pi.on("session_start", async (event, ctx) => {
+    if (event.reason !== "startup" && event.reason !== "reload") return;
+    try {
+      await ensureModels(pi, ctx, { force: false });
+    } catch (err: any) {
+      ctx.ui.notify(
+        `Hetzner: couldn't load models — ${err.message}. Re-run /hetzner:refresh once a key is set.`,
+        "warning",
+      );
+    }
+  });
+
+  // Command /hetzner:refresh.
+  pi.registerCommand("hetzner:refresh", {
+    description: "Refresh the Hetzner model catalog from /api/v1/models",
+    handler: async (_args, ctx) => {
+      const before = state.modelsFetchedAt;
+      try {
+        const models = await ensureModels(pi, ctx, { force: true });
+        // If the fetch failed, ensureModels silently fell back to the stale
+        // cache; detect that by checking whether modelsFetchedAt advanced.
+        if (before !== null && state.modelsFetchedAt === before) {
+          ctx.ui.notify(
+            `Hetzner: refresh failed — using ${models.length} cached models (from ${new Date(before).toLocaleString()})`,
+            "warning",
+          );
+        } else {
+          ctx.ui.notify(`Hetzner: refreshed ${models.length} models`, "info");
+        }
+      } catch (err: any) {
+        ctx.ui.notify(`Hetzner: model refresh failed — ${err.message}`, "error");
+      }
+    },
+  });
+}
+
+// ─── Model Catalog ─────────────────────────────────────────────────
+
+/** (Re-)register the hetzner provider with the given model list. */
+function registerModels(pi: ExtensionAPI, models: ProviderModelConfig[]): void {
+  pi.registerProvider("hetzner", {
+    name: "Hetzner",
+    baseUrl: BASE_URL,
+    apiKey: "$HETZNER_API_KEY",
+    api: "openai-completions",
+    models,
+  });
+}
+
+/** Return the catalog, refetching from /models when stale or `force`d. Concurrent calls share one refresh. */
+async function ensureModels(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  opts: { force: boolean },
+): Promise<ProviderModelConfig[]> {
+  if (refreshInFlight) return refreshInFlight;
+  if (!opts.force && state.modelsExpireAt !== null && Date.now() < state.modelsExpireAt) {
+    return state.models ?? []; // Fresh catalog; already registered at startup.
+  }
+  refreshInFlight = refreshModels(pi, ctx).finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+/** Refresh the catalog and re-register the provider; fall back to the stale list on failure. */
+async function refreshModels(pi: ExtensionAPI, ctx: ExtensionContext): Promise<ProviderModelConfig[]> {
+  try {
+    const models = await fetchModels(ctx);
+    registerModels(pi, models);
+    return models;
+  } catch (err) {
+    // Network/API/auth failure: keep whatever is already registered.
+    // A stale list beats none; /hetzner:refresh reports the fallback.
+    if (state.models?.length) return state.models;
+    throw err;
+  }
+}
+
+/** Fetch /models, map to ProviderModelConfig[], and cache it. */
+async function fetchModels(ctx: ExtensionContext): Promise<ProviderModelConfig[]> {
+  const apiKey = await ctx.modelRegistry.getApiKeyForProvider("hetzner");
+  if (!apiKey) throw new Error("no API key configured for hetzner");
+  const res = await fetch(`${BASE_URL}/models`, { headers: { Authorization: `Bearer ${apiKey}` } });
+  if (!res.ok) throw new Error(`/models returned HTTP ${res.status}`);
+  const body = (await res.json()) as { data?: ApiModel[] };
+  const entries = body.data ?? [];
+  if (!entries.length) throw new Error("/models returned empty list");
+
+  const models = entries.map(buildModel);
+  state = { modelsFetchedAt: Date.now(), modelsExpireAt: Date.now() + CACHE_TTL_MS, models };
+  await writeState(state);
+  return models;
+}
+
+/** Convert one /models entry into a pi ProviderModelConfig. */
+function buildModel(m: ApiModel): ProviderModelConfig {
+  return {
+    id: m.id,
+    name: `${formatName(m.id)} (Hetzner)`,
+    reasoning: true,
+    // vLLM emits reasoning content but rejects reasoning_effort and the developer role.
+    compat: { supportsReasoningEffort: false, supportsDeveloperRole: false },
+    input: ["text", "image"],
+    contextWindow: m.max_model_len ?? DEFAULT_CONTEXT_WINDOW,
+    maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, // Free while the API is experimental.
+  };
+}
+
+async function readState(): Promise<State> {
+  try {
+    const parsed = JSON.parse(await readFile(STATE_PATH, "utf8")) as Partial<State>;
+    return {
+      modelsFetchedAt: typeof parsed?.modelsFetchedAt === "number" ? parsed.modelsFetchedAt : null,
+      modelsExpireAt: typeof parsed?.modelsExpireAt === "number" ? parsed.modelsExpireAt : null,
+      models: Array.isArray(parsed?.models) ? (parsed.models as ProviderModelConfig[]) : null,
+    };
+  } catch {
+    // Missing or unreadable state file → cold start with EMPTY_STATE.
+    return { ...EMPTY_STATE };
+  }
+}
+
+async function writeState(next: State): Promise<void> {
+  try {
+    await mkdir(dirname(STATE_PATH), { recursive: true });
+    await writeFile(STATE_PATH, JSON.stringify(next, null, 2));
+  } catch {
+    // Best-effort: the in-memory state still applies for the current session.
+  }
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────
+
+function formatName(id: string): string {
+  const model = id.includes("/") ? id.split("/").pop()! : id;
+  return model.replace(/-/g, " ").replace(/\bFP8\b/gi, "").replace(/Instruct.*$/i, "").trim();
+}
+
+// ─── Types ──────────────────────────────────────────────────────────
+
+interface State {
+  modelsFetchedAt: number | null;
+  modelsExpireAt: number | null;
+  models: ProviderModelConfig[] | null;
+}
+
+interface ApiModel {
+  id: string;
+  max_model_len?: number;
+}
