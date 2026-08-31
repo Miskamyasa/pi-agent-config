@@ -46,16 +46,21 @@
   },
   "hideThinkingBlock": true,
   "enabledModels": [
+    "anthropic/claude-opus-5",
+    "cpa/deepseek/deepseek-v4-flash",
+    "cpa/deepseek/deepseek-v4-pro",
+    "cpa/hetzner/qwen3.6-35b-a3b",
+    "cpa/hetzner/qwen3.8-27B",
+    "cpa/jalapeno/deepseek-v4-flash",
+    "cpa/jalapeno/glm-5.2",
+    "cpa/jalapeno/glm-5.3-flash",
+    "cpa/neuralwatt/deepseek-v4-flash",
+    "cpa/neuralwatt/glm-5.2-short",
     "cpa/nube/deepseek-v4-flash",
     "cpa/nube/glm-5.2",
     "cpa/nube/kimi-k3",
-    "cpa/deepseek/deepseek-v4-flash",
-    "cpa/deepseek/deepseek-v4-pro",
-    "cpa/neuralwatt/deepseek-v4-flash",
-    "cpa/neuralwatt/glm-5.2-short",
-    "openai/gpt-5.6-sol",
-    "anthropic/claude-opus-5",
-    "ollama-cloud/gpt-oss:120b"
+    "ollama-cloud/gpt-oss:120b",
+    "openai/gpt-5.6-sol"
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,
@@ -87,5 +92,8 @@
     "consolidateOnShutdown": true,
     "captureTurns": true,
     "distillModel": "openai/gpt-5.6-luna"
+  },
+  "btw": {
+    "model": "cpa/nube/deepseek-v4-flash"
   }
 }
