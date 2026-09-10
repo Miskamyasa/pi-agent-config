@@ -8,9 +8,7 @@
   "tuiMode": "fullscreen",
   "enableInstallTelemetry": true,
   "packages": [
-    "npm:@miskamyasa/pi-model-project-persist@1.0.0",
     "npm:pi-ollama-cloud",
-    "npm:pi-mcp-adapter",
     "npm:pi-tool-display"
   ],
   "hideThinkingBlock": true,
