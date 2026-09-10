@@ -1,4 +1,5 @@
 import {
+  BorderedLoader,
   copyToClipboard,
   type ExtensionAPI,
   type ExtensionCommandContext,
@@ -9,17 +10,17 @@ import {
 import { Box, Markdown, Text } from "@earendil-works/pi-tui";
 import { getConfigPath, readConfig, type ModelReference } from "./config.ts";
 import { completeModel, lowestSupportedThinkingLevel, type ThinkingLevel } from "./completion.ts";
-import { buildTranscript, completeAnswer } from "./answer.ts";
+import { buildTranscript, completeAnswer, type AnswerOutcome } from "./answer.ts";
 
-const USAGE = "Usage: /btw <question>";
-const ANSWER_ENTRY_TYPE = "btw.answer";
-const ANSWER_HEADING = "🫥 BTW:";
+const USAGE = "Usage: /aside <question>";
+const ANSWER_ENTRY_TYPE = "aside.answer";
+const ANSWER_HEADING = "🫥 Aside:";
 
 type PiModel = NonNullable<ReturnType<ExtensionContext["modelRegistry"]["find"]>>;
 type UsableModel = { model: PiModel; thinkingLevel: ThinkingLevel };
 type AnswerEntryData = { question: string; display: string };
 
-export default function byTheWay(pi: ExtensionAPI): void {
+export default function aside(pi: ExtensionAPI): void {
   let hasShownStartupWarning = false;
 
   pi.registerEntryRenderer<AnswerEntryData>(ANSWER_ENTRY_TYPE, (entry, _options, theme) => {
@@ -41,19 +42,19 @@ export default function byTheWay(pi: ExtensionAPI): void {
 
     const config = await readConfig(getConfigPath());
     if (config.kind === "missing") {
-      notifyStartupWarning(ctx, 'BTW is not configured. Add "btw": { "model": "<provider>/<model>" } to settings.json.');
+      notifyStartupWarning(ctx, 'Aside is not configured. Add "aside": { "model": "<provider>/<model>" } to settings.json.');
       return;
     }
     if (config.kind === "invalid") {
-      notifyStartupWarning(ctx, `BTW configuration is invalid at ${config.path}.`);
+      notifyStartupWarning(ctx, `Aside configuration is invalid at ${config.path}.`);
       return;
     }
     if (resolveUsableModel(ctx, config.config.model) === undefined) {
-      notifyStartupWarning(ctx, "BTW's selected model is unavailable or lacks configured auth.");
+      notifyStartupWarning(ctx, "Aside's selected model is unavailable or lacks configured auth.");
     }
   });
 
-  pi.registerCommand("btw", {
+  pi.registerCommand("aside", {
     description: "Ask a side question answered by a separate model",
     handler: async (args, ctx) => {
       if (ctx.mode !== "tui") {
@@ -70,8 +71,8 @@ export default function byTheWay(pi: ExtensionAPI): void {
     },
   });
 
-  pi.registerCommand("btw:copy", {
-    description: "Copy the last BTW answer to the clipboard",
+  pi.registerCommand("aside:copy", {
+    description: "Copy the last Aside answer to the clipboard",
     handler: async (_args, ctx) => {
       if (ctx.mode !== "tui") {
         return;
@@ -93,37 +94,38 @@ export default function byTheWay(pi: ExtensionAPI): void {
   async function runAnswer(question: string, ctx: ExtensionCommandContext): Promise<void> {
     const config = await readConfig(getConfigPath());
     if (config.kind === "missing") {
-      ctx.ui.notify('BTW is not configured. Add "btw": { "model": "<provider>/<model>" } to settings.json.', "warning");
+      ctx.ui.notify('Aside is not configured. Add "aside": { "model": "<provider>/<model>" } to settings.json.', "warning");
       return;
     }
     if (config.kind === "invalid") {
-      ctx.ui.notify(`BTW configuration is invalid at ${config.path}.`, "warning");
+      ctx.ui.notify(`Aside configuration is invalid at ${config.path}.`, "warning");
       return;
     }
 
     const usable = resolveUsableModel(ctx, config.config.model);
     if (usable === undefined) {
-      ctx.ui.notify("BTW's selected model is unavailable or lacks configured auth.", "warning");
+      ctx.ui.notify("Aside's selected model is unavailable or lacks configured auth.", "warning");
       return;
     }
 
     const transcript = buildTranscript(ctx.sessionManager.getBranch());
 
-    ctx.ui.setWorkingMessage("Answering on the side…");
-    let outcome;
-    try {
-      outcome = await completeAnswer(transcript, question, ctx.signal, (context, options) =>
+    const outcome = await ctx.ui.custom<AnswerOutcome>((tui, theme, _kb, done) => {
+      const loader = new BorderedLoader(tui, theme, "Answering on the side…");
+      loader.onAbort = () => done({ kind: "cancelled" });
+
+      completeAnswer(transcript, question, loader.signal, (context, options) =>
         completeModel(ctx.modelRegistry, usable.model, context, options),
-      );
-    } finally {
-      ctx.ui.setWorkingMessage();
-    }
+      ).then(done);
+
+      return loader;
+    });
 
     if (outcome.kind === "cancelled") {
       return;
     }
     if (outcome.kind === "failed") {
-      ctx.ui.notify("BTW could not produce an answer.", "warning");
+      ctx.ui.notify("Aside could not produce an answer.", "warning");
       return;
     }
 
@@ -134,7 +136,7 @@ export default function byTheWay(pi: ExtensionAPI): void {
   async function copyLastAnswer(ctx: ExtensionCommandContext): Promise<void> {
     const entry = findLastAnswerEntry(ctx.sessionManager.getBranch());
     if (entry === undefined) {
-      ctx.ui.notify("No BTW answer to copy yet.", "warning");
+      ctx.ui.notify("No Aside answer to copy yet.", "warning");
       return;
     }
 
@@ -145,7 +147,7 @@ export default function byTheWay(pi: ExtensionAPI): void {
       return;
     }
 
-    ctx.ui.notify("Copied last BTW answer to clipboard.", "info");
+    ctx.ui.notify("Copied last Aside answer to clipboard.", "info");
   }
 }
 

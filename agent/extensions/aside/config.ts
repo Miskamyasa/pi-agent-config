@@ -7,14 +7,14 @@ export type ModelReference = {
   id: string;
 };
 
-export type BtwConfig = {
+export type AsideConfig = {
   model: ModelReference;
 };
 
 export type ConfigReadResult =
   | { kind: "missing"; path: string }
   | { kind: "invalid"; path: string }
-  | { kind: "valid"; path: string; config: BtwConfig };
+  | { kind: "valid"; path: string; config: AsideConfig };
 
 export function getConfigPath(): string {
   return join(getAgentDir(), "settings.json");
@@ -35,11 +35,11 @@ export async function readConfig(path: string): Promise<ConfigReadResult> {
     return { kind: "invalid", path };
   }
 
-  if (!isPlainObject(settings) || !("btw" in settings)) {
+  if (!isPlainObject(settings) || !("aside" in settings)) {
     return { kind: "missing", path };
   }
 
-  const config = parseBtwConfig(settings.btw);
+  const config = parseAsideConfig(settings.aside);
   return config === undefined ? { kind: "invalid", path } : { kind: "valid", path, config };
 }
 
@@ -62,7 +62,7 @@ export function parseModelReference(value: unknown): ModelReference | undefined 
   return { provider, id };
 }
 
-function parseBtwConfig(value: unknown): BtwConfig | undefined {
+function parseAsideConfig(value: unknown): AsideConfig | undefined {
   if (!isPlainObject(value)) {
     return undefined;
   }
