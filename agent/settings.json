@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.84.4",
+  "lastChangelogVersion": "0.85.1",
   "defaultProvider": "ollama-cloud",
   "defaultModel": "gpt-oss:120b",
   "defaultThinkingLevel": "medium",
