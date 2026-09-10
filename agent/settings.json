@@ -33,21 +33,21 @@
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,
-  "steeringMode": "all",
-  "followUpMode": "all",
+  "steeringMode": "one-at-a-time",
+  "followUpMode": "one-at-a-time",
   "collapseChangelog": true,
-  "treeFilterMode": "all",
+  "treeFilterMode": "no-tools",
   "compaction": {
     "enabled": false
   },
-  "outputPad": 0,
+  "outputPad": 1,
   "showCacheMissNotices": true,
   "defaultProjectTrust": "ask",
   "terminal": {
     "showImages": true,
     "showTerminalProgress": false
   },
-  "editorPaddingX": 0,
+  "editorPaddingX": 1,
   "images": {
     "autoResize": true
   },
@@ -64,5 +64,10 @@
   },
   "btw": {
     "model": "cpa/nube/deepseek-v4-flash"
-  }
+  },
+  "fullscreenCopyOnSelect": false,
+  "fullscreenScrollbar": "auto",
+  "fullscreenExitOutput": "resume-hint",
+  "transport": "auto",
+  "httpIdleTimeoutMs": 60000
 }
