@@ -22,8 +22,9 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import {
 	type Component,
+	Editor,
+	type EditorTheme,
 	type Focusable,
-	Input,
 	Key,
 	Markdown,
 	matchesKey,
@@ -513,11 +514,11 @@ interface BtwOverlayCallbacks {
 	onUnfocus: () => void;
 }
 
-const CHROME_LINES = 7; // top border, title, rule, status, input, hints, bottom border
+const CHROME_LINES = 6; // top border, title, rule, status, hints, bottom border (input rows add to this)
 const MIN_CONTENT_LINES = 4;
 
 class BtwOverlayComponent implements Component, Focusable {
-	private readonly input = new Input();
+	private readonly input: Editor;
 	private readonly tui: TUI;
 	private readonly theme: Theme;
 	private readonly callbacks: BtwOverlayCallbacks;
@@ -530,9 +531,21 @@ class BtwOverlayComponent implements Component, Focusable {
 		this.tui = tui;
 		this.theme = theme;
 		this.callbacks = callbacks;
+		const editorTheme: EditorTheme = {
+			// Blank rules: the overlay frame borders the input, the editor must not draw its own.
+			borderColor: () => "",
+			selectList: {
+				selectedPrefix: (text) => theme.fg("accent", text),
+				selectedText: (text) => theme.fg("accent", text),
+				description: (text) => theme.fg("muted", text),
+				scrollInfo: (text) => theme.fg("dim", text),
+				noMatch: (text) => theme.fg("warning", text),
+			},
+		};
+		this.input = new Editor(tui, editorTheme, { paddingX: 0 });
 		this.input.onSubmit = (value) => {
 			// Keep the draft when the ask is rejected (still answering); the parent shows a hint.
-			if (!this.callbacks.readActive()) this.input.setValue("");
+			if (!this.callbacks.readActive()) this.input.setText("");
 			this.followBottom = true;
 			this.callbacks.onSubmit(value);
 		};
@@ -556,7 +569,7 @@ class BtwOverlayComponent implements Component, Focusable {
 			this.callbacks.onDismiss();
 			return;
 		}
-		const inputEmpty = this.input.getValue().length === 0;
+		const inputEmpty = this.input.getText().length === 0;
 		if (inputEmpty) {
 			if (matchesKey(data, Key.left)) {
 				const index = this.callbacks.readViewIndex();
@@ -624,19 +637,23 @@ class BtwOverlayComponent implements Component, Focusable {
 		return this.theme.fg("border", `${left}${"─".repeat(innerWidth)}${right}`);
 	}
 
-	private inputFrameLine(innerWidth: number): string {
-		const targetWidth = Math.max(1, innerWidth);
+	/** Render the editor inside the overlay frame; wraps to as many rows as the text needs. */
+	private inputFrameLines(innerWidth: number): string[] {
 		const previousFocused = this.input.focused;
-		// Render the embedded input unfocused: the emitted cursor marker skews the row.
+		// Render the embedded editor unfocused: a visible cursor marker skews the framed rows.
 		this.input.focused = false;
+		let rendered: string[];
 		try {
-			const rendered = this.input.render(targetWidth)[0] ?? "";
-			const line = truncateToWidth(rendered, targetWidth, "");
-			const padding = Math.max(0, targetWidth - visibleWidth(line));
-			return `${this.theme.fg("border", "│")}${line}${" ".repeat(padding)}${this.theme.fg("border", "│")}`;
+			rendered = this.input.render(Math.max(1, innerWidth));
 		} finally {
 			this.input.focused = previousFocused;
 		}
+		if (rendered.length > 1 && rendered[0].trim() === "" && rendered[rendered.length - 1].trim() === "") {
+			// borderColor blanks the editor's top/bottom rules; drop the two empty rows.
+			rendered = rendered.slice(1, -1);
+		}
+		if (rendered.length === 0) rendered = [""];
+		return rendered.map((line) => this.frameLine(line, innerWidth));
 	}
 
 	render(width: number): string[] {
@@ -671,9 +688,10 @@ class BtwOverlayComponent implements Component, Focusable {
 			contentLines.push(dim("dim", "No side questions yet."));
 		}
 
+		const editorLines = this.inputFrameLines(innerWidth);
 		const maxRows = Math.max(
 			MIN_CONTENT_LINES,
-			Math.floor((process.stdout.rows ?? 30) * 0.78) - CHROME_LINES,
+			Math.floor((process.stdout.rows ?? 30) * 0.78) - (CHROME_LINES + editorLines.length),
 		);
 		const scrollOffset = this.clampScroll(contentLines.length, maxRows);
 		const hiddenAbove = contentLines.length > maxRows ? scrollOffset : 0;
@@ -696,7 +714,7 @@ class BtwOverlayComponent implements Component, Focusable {
 			...visible.map((line) => this.frameLine(line, innerWidth)),
 			this.ruleLine(innerWidth),
 			this.frameLine(dim("warning", statusText), innerWidth),
-			this.inputFrameLine(innerWidth),
+			...editorLines,
 			this.frameLine(
 				dim(
 					"dim",
