@@ -5,62 +5,31 @@
   "defaultThinkingLevel": "medium",
   "quietStartup": true,
   "theme": "e-ink",
+  "tuiMode": "fullscreen",
   "enableInstallTelemetry": true,
   "packages": [
     "npm:@miskamyasa/pi-model-project-persist@1.0.0",
     "npm:pi-ollama-cloud",
     "npm:pi-mcp-adapter",
-    "npm:pi-powerline-footer",
     "npm:pi-tool-display"
   ],
-  "powerline": {
-    "preset": "default",
-    "model": {
-      "display": "qualified"
-    },
-    "customItems": [
-      {
-        "id": "mem",
-        "statusKey": "mnemo"
-      },
-      {
-        "id": "mcp",
-        "statusKey": "mcp"
-      }
-    ],
-    "layout": {
-      "left": [
-        "model",
-        "thinking"
-      ],
-      "right": [
-        "context_pct",
-        "cost"
-      ],
-      "secondary": [
-        "custom:mem",
-        "custom:mcp"
-      ]
-    },
-    "placement": "below"
-  },
   "hideThinkingBlock": true,
   "enabledModels": [
     "anthropic/claude-opus-5",
-    "cpa/deepseek/deepseek-v4-flash",
-    "cpa/deepseek/deepseek-v4-pro",
     "cpa/hetzner/qwen3.6-35b-a3b",
     "cpa/hetzner/qwen3.8-27B",
     "cpa/jalapeno/deepseek-v4-flash",
     "cpa/jalapeno/glm-5.2",
+    "cpa/jalapeno/glm-5.3",
     "cpa/jalapeno/glm-5.3-flash",
-    "cpa/neuralwatt/deepseek-v4-flash",
-    "cpa/neuralwatt/glm-5.2-short",
-    "cpa/nube/deepseek-v4-flash",
-    "cpa/nube/glm-5.2",
+    "cpa/neuralwatt/glm-5.3",
     "cpa/nube/kimi-k3",
     "ollama-cloud/gpt-oss:120b",
-    "openai/gpt-5.6-sol"
+    "openai/gpt-5.6-sol",
+    "cpa/nube/glm-5.3",
+    "cpa/nube/glm-5.3-flash",
+    "cpa/deepseek/deepseek-flash",
+    "cpa/neuralwatt/glm-5.3-flash"
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,
