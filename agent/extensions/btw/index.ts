@@ -165,7 +165,8 @@ function createBtwResourceLoader(ctx: ExtensionCommandContext): ResourceLoader {
 	return new DefaultResourceLoader({
 		cwd: ctx.cwd,
 		agentDir: getAgentDir(),
-		noExtensions: true,
+		// Extensions load so provider extensions (e.g. cpa) re-register inside the
+		// sub-session's fresh ModelRuntime. Without this, their models have no auth.
 		noPromptTemplates: true,
 		noThemes: true,
 		// customPrompt is the raw prompt text: the dynamic footer is appended fresh by
