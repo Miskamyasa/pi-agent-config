@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { keyHint, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
@@ -6,6 +6,9 @@ import { Text } from "@earendil-works/pi-tui";
 // Output caps: stop collecting at MAX_BUFFER, hand the model at most MAX_OUTPUT.
 const MAX_BUFFER = 1024 * 1024;
 const MAX_OUTPUT = 50 * 1024;
+
+const RG_MISSING_HINT =
+  "rg not found on PATH. Install it: brew install ripgrep (macOS) or apt install ripgrep (Linux).";
 
 const PARAMETERS = {
   type: "object",
@@ -96,10 +99,7 @@ export default function (pi: ExtensionAPI) {
         });
 
         child.on("error", (err: NodeJS.ErrnoException) => {
-          const hint =
-            err.code === "ENOENT"
-              ? "rg not found on PATH. Install it: brew install ripgrep (macOS) or apt install ripgrep (Linux)."
-              : String(err.message);
+          const hint = err.code === "ENOENT" ? RG_MISSING_HINT : String(err.message);
           finish(hint, { error: err.code ?? "spawn-error" });
         });
 
@@ -163,5 +163,24 @@ export default function (pi: ExtensionAPI) {
       }
       return new Text(out, 0, 0);
     },
+  });
+
+  // grep duplicates rg. Drop the builtin so the model sees one search tool
+  // instead of two near-identical ones, and save its schema. Keep it when
+  // ripgrep is missing: otherwise nothing can search file contents.
+  pi.on("session_start", (_event, ctx) => {
+    // Bounded: a hung rg on PATH must not stall session start or /reload.
+    const probe = spawnSync("rg", ["--version"], { stdio: "ignore", timeout: 5_000 });
+    if (probe.status === 0) {
+      pi.setActiveTools(pi.getActiveTools().filter((name) => name !== "grep"));
+      return;
+    }
+
+    // hasUI is false in print mode, where a notice would go nowhere.
+    const reason =
+      (probe.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT"
+        ? RG_MISSING_HINT
+        : `rg is not usable (${probe.error?.message ?? `exit code ${probe.status}`}).`;
+    if (ctx.hasUI) ctx.ui.notify(`${reason} The built-in grep tool stays active.`, "warning");
   });
 }

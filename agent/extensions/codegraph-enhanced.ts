@@ -206,6 +206,15 @@ const ToolDefinitions = [
   },
 ] as const;
 
+const CodegraphToolNames: readonly string[] = ToolDefinitions.map((t) => t.name);
+
+/**
+ * Loader tool for the eight codegraph tools. They stay registered but inactive,
+ * so the provider only sees their schemas after the model asks for them.
+ * Inactive tools cost nothing: registration alone never reaches the provider.
+ */
+const LoaderToolName = "codegraph_load";
+
 type ToolName = (typeof ToolDefinitions)[number]["name"];
 type ToolParams = Record<string, unknown> & { projectPath?: string };
 type JsonRpcRequest = (method: string, params: Record<string, unknown>) => Promise<any>;
@@ -1159,6 +1168,9 @@ export default function codegraphExtension(pi: ExtensionAPI): void {
       // notify of the outcome so the user knows what happened.
       if (trimmed === "init") {
         runManualInit(ctx);
+        // The index lands asynchronously. Activate the loader now so the next
+        // turn can use it without a manual /reload.
+        pi.setActiveTools([...new Set([...pi.getActiveTools(), LoaderToolName])]);
         return;
       }
 
@@ -1259,14 +1271,18 @@ export default function codegraphExtension(pi: ExtensionAPI): void {
     },
   });
 
+  // One line, not five, and only while the loader is active. The tool
+  // description carries the rest; a longer block just repeats it.
   pi.on("before_agent_start", async (event) => {
-    const guidance = [
-      "CodeGraph tools are available as codegraph_* Pi tools.",
-      "For architecture, flow, where-is-symbol, impact, and codebase navigation questions, use CodeGraph tools directly before grep/read.",
-      "Use codegraph_explore first for broad questions, codegraph_search for symbol-name lookup, codegraph_files for project structure, codegraph_node for a known symbol, and codegraph_callers for impact/flow analysis.",
-      "If codegraph_search returns no exact result, try codegraph_explore or codegraph_files/codegraph_node before falling back to grep/read; CodeGraph symbol search may miss literal constants or generated names that still exist in source text.",
-      "Only use grep/read after CodeGraph is insufficient or when the user asks for literal text matching.",
-    ].join("\n");
+    const active = pi.getActiveTools();
+    // Stay silent once anything is loaded. The loader stays active for the
+    // whole session, so a loader-only check would repeat stale advice and
+    // invite a pointless second codegraph_load call.
+    if (!active.includes(LoaderToolName) || CodegraphToolNames.some((name) => active.includes(name))) {
+      return;
+    }
+    const guidance =
+      `CodeGraph structural tools are inactive. Call ${LoaderToolName} once, then prefer codegraph_* over grep/read for symbol, flow, and impact questions.`;
 
     return {
       systemPrompt: event.systemPrompt ? `${event.systemPrompt}\n\n${guidance}` : guidance,
@@ -1278,10 +1294,9 @@ export default function codegraphExtension(pi: ExtensionAPI): void {
       name: tool.name,
       label: tool.label,
       description: tool.description,
-      promptSnippet: tool.description,
-      promptGuidelines: [
-        `${tool.name} is available for structural code questions backed by the local CodeGraph index.`,
-      ],
+      // No promptSnippet/promptGuidelines: both duplicate the description in the
+      // system prompt, and prompt metadata forces a system-prompt rebuild when
+      // the tool is activated mid-session.
       parameters: tool.parameters,
       async execute(_toolCallId, params: Static<typeof tool.parameters>, signal) {
         const text = await callCodeGraphTool(tool.name, (params || {}) as ToolParams, signal);
@@ -1341,4 +1356,45 @@ export default function codegraphExtension(pi: ExtensionAPI): void {
       },
     });
   }
+
+  pi.registerTool({
+    name: LoaderToolName,
+    label: "Load CodeGraph tools",
+    description:
+      `Activate CodeGraph structural-analysis tools for this session, then call them. Available: ${CodegraphToolNames.join(", ")}. Omit tools to activate all.`,
+    parameters: Type.Object({
+      tools: Type.Optional(Type.Array(Type.String({ description: "CodeGraph tool names to activate." }))),
+    }),
+    async execute(_toolCallId, params) {
+      const requested = params.tools?.length ? params.tools : [...CodegraphToolNames];
+      const unknown = requested.filter((name) => !CodegraphToolNames.includes(name));
+      const active = pi.getActiveTools();
+      const added = requested.filter((name) => CodegraphToolNames.includes(name) && !active.includes(name));
+      pi.setActiveTools([...new Set([...active, ...added])]);
+
+      const text = unknown.length
+        ? `Unknown tool(s): ${unknown.join(", ")}. Available: ${CodegraphToolNames.join(", ")}.`
+        : added.length
+          ? `Activated: ${added.join(", ")}`
+          : `Already active: ${requested.join(", ")}`;
+      return { content: [{ type: "text" as const, text }], details: {} };
+    },
+  });
+
+  // Keep the loader active only where it can work. A folder without an index
+  // pays zero codegraph tokens; the auto-index flag predicts that an index is
+  // about to exist, so the loader stays available there too.
+  pi.on("session_start", async (_event, ctx) => {
+    let indexed = false;
+    try {
+      indexed = (await stat(path.join(ctx.cwd ?? process.cwd(), CodegraphDir))).isDirectory();
+    } catch {
+      indexed = false;
+    }
+    const keepLoader = indexed || pi.getFlag(FLAGS[0].name) === true;
+    const active = pi.getActiveTools().filter(
+      (name) => name !== LoaderToolName && !CodegraphToolNames.includes(name),
+    );
+    pi.setActiveTools(keepLoader ? [...active, LoaderToolName] : active);
+  });
 }
