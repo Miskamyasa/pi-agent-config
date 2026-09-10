@@ -20,11 +20,11 @@ import {
   readConfig,
   type SlyeConfig,
   writeConfigAtomically,
-} from "./config.ts";
-import { completeModel, lowestSupportedThinkingLevel, type ThinkingLevel } from "./model-completion.ts";
-import { formatModelCandidate, pickModel, selectModelCandidates } from "./model-picker.ts";
-import { completeRewrite, type RewriteOutcome } from "./model-rewrite.ts";
-import { prepareRewriteRequest } from "./rewrite.ts";
+} from "./config";
+import { completeModel, lowestSupportedThinkingLevel, type ThinkingLevel } from "./model-completion";
+import { formatModelCandidate, pickModel, selectModelCandidates } from "./model-picker";
+import { completeRewrite, type RewriteOutcome } from "./model-rewrite";
+import { prepareRewriteRequest } from "./rewrite";
 
 const USAGE = "Usage: /slye model|on|off";
 const MODEL_SCOPE_ALL = "All projects";
@@ -153,6 +153,10 @@ export default function speakLikeYouEat(pi: ExtensionAPI): void {
     const effectiveConfig = await loadConfig(ctx);
     if (effectiveConfig.kind !== "valid" || (!effectiveConfig.config.enabled && !options.force)) {
       return "noop";
+    }
+
+    if (!effectiveConfig.config.model) {
+      throw new Error("Model is required for running rewrite")
     }
 
     const model = resolveUsableModel(ctx, effectiveConfig.config.model);

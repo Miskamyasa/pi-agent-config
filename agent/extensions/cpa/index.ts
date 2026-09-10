@@ -180,8 +180,8 @@ async function catalog(): Promise<ModelsDevData | null> {
 
 async function fetchCatalog(): Promise<ModelsDevData | null> {
   const [providers, flat] = await Promise.all([
-    fetchJson(MODELS_DEV_URL).catch(() => null),
-    fetchJson(MODELS_DEV_MODELS_URL).catch(() => null),
+    fetchJson<Record<string, ModelsDevProvider>>(MODELS_DEV_URL).catch(() => null),
+    fetchJson<Record<string, ModelsDevModel>>(MODELS_DEV_MODELS_URL).catch(() => null),
   ]);
   return { providers, flat };
 }

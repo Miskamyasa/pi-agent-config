@@ -119,6 +119,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
         if (epoch === sessionEpoch) ctx.ui.setStatus(STATUS_KEY, `💾 MEM: http/${activeMemoryMode}`);
       })
       .catch((err: unknown) => {
+        console.error(err)
         if (epoch === sessionEpoch) {
           ctx.ui.setStatus(STATUS_KEY, "💾 MEM: unreachable");
           ctx.ui.notify(

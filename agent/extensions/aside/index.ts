@@ -8,9 +8,9 @@ import {
   type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Text } from "@earendil-works/pi-tui";
-import { getConfigPath, readConfig, type ModelReference } from "./config.ts";
-import { completeModel, lowestSupportedThinkingLevel, type ThinkingLevel } from "./completion.ts";
-import { buildTranscript, completeAnswer, type AnswerOutcome } from "./answer.ts";
+import { getConfigPath, readConfig, type ModelReference } from "./config";
+import { completeModel, lowestSupportedThinkingLevel, type ThinkingLevel } from "./completion";
+import { buildTranscript, completeAnswer, type AnswerOutcome } from "./answer";
 
 const USAGE = "Usage: /aside <question>";
 const ANSWER_ENTRY_TYPE = "aside.answer";

@@ -12,15 +12,7 @@
     "target": "es2022",
     "allowImportingTsExtensions": true,
     "types": ["node"],
-    "lib": ["es2022"],
-    "paths": {
-      "@earendil-works/*": [
-        "/Users/dzaitsev/.config/pi/npm/node_modules/@earendil-works/*"
-      ],
-      "typebox": [
-        "/Users/dzaitsev/.config/pi/npm/node_modules/typebox/build/index.d.mts"
-      ]
-    }
+    "lib": ["es2022"]
   },
-  "include": ["./*.ts"]
+  "exclude": ["node_modules"]
 }

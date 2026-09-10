@@ -15,7 +15,6 @@
  * Keys: workingDirOnly (default true), hideContents (default false).
  * Runtime toggles: /odc-working-dir-only on|off, /odc-hide-contents on|off.
  */
-
 import type { ExtensionAPI, BuildSystemPromptOptions } from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Text, type AutocompleteItem } from "@earendil-works/pi-tui";
@@ -323,7 +322,7 @@ export default function onDemandContext(pi: ExtensionAPI) {
     let targetDir: string | null = null;
 
     if (event.toolName === "bash") {
-      const command = event.input?.command ?? "";
+      const command = String(event.input?.command);
       const rawOutput = (event.content ?? [])
         .filter((c) => c.type === "text")
         .map((c) => c.text)
