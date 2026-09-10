@@ -1,7 +1,7 @@
 {
   "lastChangelogVersion": "0.84.4",
-  "defaultProvider": "neuralwatt",
-  "defaultModel": "glm-5.2-short",
+  "defaultProvider": "ollama-cloud",
+  "defaultModel": "gpt-oss:120b",
   "defaultThinkingLevel": "medium",
   "quietStartup": true,
   "theme": "e-ink",
