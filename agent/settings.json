@@ -63,9 +63,9 @@
     "distillModel": "openai/gpt-5.6-luna"
   },
   "btw": {
-    "model": "cpa/nube/deepseek-v4-flash"
+    "model": "cpa/nube/glm-5.3-flash"
   },
-  "fullscreenCopyOnSelect": false,
+  "fullscreenCopyOnSelect": true,
   "fullscreenScrollbar": "auto",
   "fullscreenExitOutput": "resume-hint",
   "transport": "auto",

@@ -97,7 +97,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
 
     const config = loadMnemosyneConfig();
     if (!config) {
-      ctx.ui.setStatus(STATUS_KEY, "mem: disabled (config)");
+      ctx.ui.setStatus(STATUS_KEY, "💾 mem: disabled (config)");
       return;
     }
 
@@ -116,11 +116,11 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     provider
       .stats(bank)
       .then(() => {
-        if (epoch === sessionEpoch) ctx.ui.setStatus(STATUS_KEY, `mem: http/${activeMemoryMode}`);
+        if (epoch === sessionEpoch) ctx.ui.setStatus(STATUS_KEY, `💾 mem: http/${activeMemoryMode}`);
       })
       .catch((err: unknown) => {
         if (epoch === sessionEpoch) {
-          ctx.ui.setStatus(STATUS_KEY, "mem: unreachable");
+          ctx.ui.setStatus(STATUS_KEY, "💾 mem: unreachable");
           ctx.ui.notify(
             `Mnemosyne unreachable: ${err instanceof Error ? err.message : String(err)}`,
             "warning",
