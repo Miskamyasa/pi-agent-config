@@ -1149,8 +1149,9 @@ export default function codegraphExtension(pi: ExtensionAPI): void {
     },
   });
 
-  // One line, not five, and only while the loader is active. The tool
-  // description carries the rest; a longer block just repeats it.
+  // Explicit triggers, not "prefer": a trigger list is what makes the model's
+  // load/skip decision auditable against rules instead of taste. The tool
+  // descriptions carry everything else.
   pi.on("before_agent_start", async (event) => {
     const active = pi.getActiveTools();
     // Stay silent once anything is loaded. The loader stays active for the
@@ -1160,7 +1161,12 @@ export default function codegraphExtension(pi: ExtensionAPI): void {
       return;
     }
     const guidance =
-      `CodeGraph structural tools are inactive. Call ${LoaderToolName} once, then prefer codegraph_* over grep/read for symbol, flow, and impact questions.`;
+      `CodeGraph structural tools are inactive. Call ${LoaderToolName} once, then use codegraph_* tools instead of grep/read for:\n` +
+      `- locating where a function, class, or type is defined or referenced\n` +
+      `- finding callers or callees of a function or method\n` +
+      `- editing or refactoring a function whose callers are unknown\n` +
+      `- assessing the impact of a change before making it\n` +
+      `Keep grep/read for plain text: comments, strings, docs, non-code files.`;
 
     return {
       systemPrompt: event.systemPrompt ? `${event.systemPrompt}\n\n${guidance}` : guidance,
