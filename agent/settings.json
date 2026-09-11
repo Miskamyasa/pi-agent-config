@@ -49,17 +49,6 @@
   "images": {
     "autoResize": true
   },
-  "pi-memory-mnemosyne": {
-    "url": "https://mnemosyne.paragraph.red/mcp",
-    "token": "${MEMORY_MCP_TOKEN}",
-    "memoryMode": "hybrid",
-    "topK": 5,
-    "bank": "default",
-    "bankScope": "exact",
-    "consolidateOnShutdown": true,
-    "captureTurns": true,
-    "distillModel": "openai/gpt-5.6-luna"
-  },
   "fullscreenCopyOnSelect": true,
   "fullscreenScrollbar": "auto",
   "fullscreenExitOutput": "resume-hint",

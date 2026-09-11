@@ -3,7 +3,8 @@ import http from "node:http";
 import https from "node:https";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 /**
  * pi-memory-mnemosyne — client for a hosted Mnemosyne MCP server over
@@ -50,7 +51,7 @@ export interface MemoryItem {
   score?: number;
 }
 
-const SETTINGS_KEY = "pi-memory-mnemosyne";
+const CONFIG_FILENAME = "pi-memory-mnemosyne.json";
 const DEFAULT_URL = "https://mnemosyne.paragraph.red/mcp";
 
 // mnemosyne/core/banks.py `_validate_bank_name`: alphanumeric, hyphen,
@@ -89,20 +90,29 @@ function expandConfig<T>(value: T): T {
   return value;
 }
 
-function getPiDir(): string {
-  const envDir = process.env.PI_CODING_AGENT_DIR;
-  if (envDir) return envDir;
-  return path.join(os.homedir(), ".pi", "agent");
-}
-
-function readUserSettings(): Record<string, unknown> {
-  const dir = getPiDir();
+function readConfigFile(): Record<string, unknown> {
+  const configPath = path.join(getAgentDir(), CONFIG_FILENAME);
+  let raw: string;
   try {
-    const raw = JSON.parse(readFileSync(path.join(dir, "settings.json"), "utf-8"));
-    return typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
-  } catch {
+    raw = readFileSync(configPath, "utf8");
+  } catch (error) {
+    // ENOENT is normal: the extension is simply not configured.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    console.error(
+      `[pi-memory-mnemosyne] cannot read ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return {};
   }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    console.error(
+      `[pi-memory-mnemosyne] invalid JSON in ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return {};
+  }
+  return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
 }
 
 function normalizeMemoryMode(v: unknown): MnemosyneMemoryMode {
@@ -110,8 +120,7 @@ function normalizeMemoryMode(v: unknown): MnemosyneMemoryMode {
 }
 
 export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
-  const raw = readUserSettings()[SETTINGS_KEY];
-  const cfg = (raw && typeof raw === "object" ? expandConfig(raw) : {}) as Record<string, unknown>;
+  const cfg = expandConfig(readConfigFile()) as Record<string, unknown>;
 
   const url = (typeof cfg.url === "string" && cfg.url.trim()) || process.env.MNEMOSYNE_URL || DEFAULT_URL;
   const token =

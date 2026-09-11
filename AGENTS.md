@@ -70,7 +70,7 @@ Tracked (committed):
   expansion for secrets (e.g. `"token": "${MEMORY_MCP_TOKEN}"`).
 - `on-demand-context.json` — `workingDirOnly`, `hideContents`. Currently
   `workingDirOnly: false`, so context files load from outside the launch dir.
-- `btw.json`, `slye.json` — per-extension config.
+- `btw.json`, `slye.json`, `pi-memory-mnemosyne.json` — per-extension config.
 
 Machine-local (gitignored — caches, credentials, per-project state):
 

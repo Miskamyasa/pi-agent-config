@@ -25,7 +25,7 @@
  * no get_all action because the mnemosyne MCP surface has no list-all tool.
  *
  * Backend: a hosted `mnemosyne mcp --transport streamable-http` server.
- * Configuration via settings.json key "pi-memory-mnemosyne" or environment
+ * Configuration via agent/pi-memory-mnemosyne.json or environment
  * (MNEMOSYNE_URL, MEMORY_MCP_TOKEN, MNEMOSYNE_INSECURE=1). Project scoping
  * maps to mnemosyne memory banks: "bankScope": "project" suffixes the bank
  * with `-project-<12-char cwd hash>`.
