@@ -1,5 +1,5 @@
 /**
- * pi-memory-mnemosyne — Mnemosyne semantic memory extension for pi.
+ * mnemosyne — Mnemosyne semantic memory extension for pi.
  * Local patched copy of TGYD-helige/pi-memory-mem0, reworked to use a hosted
  * Mnemosyne server.
  *
@@ -25,7 +25,7 @@
  * no get_all action because the mnemosyne MCP surface has no list-all tool.
  *
  * Backend: a hosted `mnemosyne mcp --transport streamable-http` server.
- * Configuration via agent/pi-memory-mnemosyne.json or environment
+ * Configuration via agent/mnemosyne.json or environment
  * (MNEMOSYNE_URL, MEMORY_MCP_TOKEN, MNEMOSYNE_INSECURE=1). Project scoping
  * maps to mnemosyne memory banks: "bankScope": "project" suffixes the bank
  * with `-project-<12-char cwd hash>`.
@@ -179,7 +179,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
       })
       .catch((err: unknown) => {
         console.error(
-          `[pi-memory-mnemosyne] failed to distill turn: ${err instanceof Error ? err.message : String(err)}`,
+          `[mnemosyne] failed to distill turn: ${err instanceof Error ? err.message : String(err)}`,
         );
       });
   });
@@ -255,9 +255,9 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
       try {
         await provider.sleep(bank);
       } catch (err: unknown) {
-        if (process.env.DEBUG?.includes("pi-memory-mnemosyne")) {
+        if (process.env.DEBUG?.includes("mnemosyne")) {
           console.error(
-            `[pi-memory-mnemosyne] sleep failed: ${err instanceof Error ? err.message : String(err)}`,
+            `[mnemosyne] sleep failed: ${err instanceof Error ? err.message : String(err)}`,
           );
         }
       }
@@ -428,7 +428,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          console.error(`[pi-memory-mnemosyne] mnemosyne_memory ${action} failed: ${message}`);
+          console.error(`[mnemosyne] mnemosyne_memory ${action} failed: ${message}`);
           return errorResult(`mnemosyne_memory ${action} failed: ${message}`);
         }
       },

@@ -9,7 +9,7 @@ description: >-
 
 # mnemosyne-memory — long-term user memory
 
-`pi-memory-mnemosyne` extension gives every pi session on this machine one
+`mnemosyne` extension gives every pi session on this machine one
 shared memory store (hosted mnemosyne server). All workspaces read and write
 the same store.
 

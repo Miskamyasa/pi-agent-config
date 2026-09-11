@@ -7,7 +7,7 @@ import path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 /**
- * pi-memory-mnemosyne — client for a hosted Mnemosyne MCP server over
+ * mnemosyne — client for a hosted Mnemosyne MCP server over
  * streamable HTTP.
  *
  * The server runs `mnemosyne mcp --transport streamable-http` behind nginx;
@@ -51,7 +51,7 @@ export interface MemoryItem {
   score?: number;
 }
 
-const CONFIG_FILENAME = "pi-memory-mnemosyne.json";
+const CONFIG_FILENAME = "mnemosyne.json";
 const DEFAULT_URL = "https://mnemosyne.paragraph.red/mcp";
 
 // mnemosyne/core/banks.py `_validate_bank_name`: alphanumeric, hyphen,
@@ -99,7 +99,7 @@ function readConfigFile(): Record<string, unknown> {
     // ENOENT is normal: the extension is simply not configured.
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
     console.error(
-      `[pi-memory-mnemosyne] cannot read ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
+      `[mnemosyne] cannot read ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
     );
     return {};
   }
@@ -108,7 +108,7 @@ function readConfigFile(): Record<string, unknown> {
     parsed = JSON.parse(raw);
   } catch (error) {
     console.error(
-      `[pi-memory-mnemosyne] invalid JSON in ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
+      `[mnemosyne] invalid JSON in ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
     );
     return {};
   }
@@ -134,7 +134,7 @@ export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
   const bankScope: BankScope = cfg.bankScope === "project" ? "project" : "exact";
   const bankProblem = invalidBankReason(bank, bankScope);
   if (bankProblem) {
-    console.error(`[pi-memory-mnemosyne] ${bankProblem}; extension disabled`);
+    console.error(`[mnemosyne] ${bankProblem}; extension disabled`);
     return undefined;
   }
 
@@ -269,7 +269,7 @@ class McpHttpClient {
       params: {
         protocolVersion: "2025-06-18",
         capabilities: {},
-        clientInfo: { name: "pi-memory-mnemosyne", version: "1.0.0" },
+        clientInfo: { name: "mnemosyne", version: "1.0.0" },
       },
     });
     this.sessionId = res.headers["mcp-session-id"];

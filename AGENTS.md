@@ -52,13 +52,13 @@ Conventions when editing or adding an extension:
   - `codegraph-enhanced` — fork of `EstebanForge/pi-codegraph-enhanced`.
   - `slye` — fork of `wtfzambo/speak-like-you-eat`.
   - `btw` — fork of `L2ncE/pi-btw`.
-  - `pi-memory-mnemosyne` — fork of `TGYD-helige/pi-memory-mem0`, reworked to
+  - `mnemosyne` — fork of `TGYD-helige/pi-memory-mem0`, reworked to
     use a hosted Mnemosyne server.
 - `subagent` is based on the pi extension examples. `cpa` and `rg` are
   original to this repo.
 
 Custom extensions in this repo: `on-demand-context`, `codegraph-enhanced`,
-`rg`, `subagent`, `slye`, `btw`, `cpa`, `pi-memory-mnemosyne`. The
+`rg`, `subagent`, `slye`, `btw`, `cpa`, `mnemosyne`. The
 `pi-tool-display` folder holds only a `config.json` (the code is the npm
 package `pi-tool-display`, declared in `settings.json` `packages`).
 
@@ -70,7 +70,7 @@ Tracked (committed):
   expansion for secrets (e.g. `"token": "${MEMORY_MCP_TOKEN}"`).
 - `on-demand-context.json` — `workingDirOnly`, `hideContents`. Currently
   `workingDirOnly: false`, so context files load from outside the launch dir.
-- `btw.json`, `slye.json`, `pi-memory-mnemosyne.json` — per-extension config.
+- `btw.json`, `slye.json`, `mnemosyne.json` — per-extension config.
 
 Machine-local (gitignored — caches, credentials, per-project state):
 
