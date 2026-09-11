@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
-export const CONFIG_FILENAME = "slye.json";
+export const GLOBAL_CONFIG_FILENAME = "config.json";
+export const PROJECT_CONFIG_FILENAME = "slye.json";
 
 export type ModelReference = {
   provider: string;

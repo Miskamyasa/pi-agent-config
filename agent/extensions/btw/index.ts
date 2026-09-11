@@ -60,7 +60,7 @@ const BTW_SYSTEM_PROMPT = [
 
 const MAX_HISTORY_EXCHANGES = 20;
 
-const BTW_CONFIG_FILENAME = "btw.json";
+const BTW_CONFIG_FILENAME = "config.json";
 const BTW_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 type BtwThinkingLevel = (typeof BTW_THINKING_LEVELS)[number];
 
@@ -69,18 +69,18 @@ interface BtwConfigFile {
 	thinking?: unknown;
 }
 
-/** Model pinned for the side agent via ~/.pi/agent/btw.json. */
+/** Model pinned for the side agent via ~/.pi/agent/extensions/btw/config.json. */
 type BtwModelResolution =
 	| { configured: false }
 	| { configured: true; model: Model<any>; thinking?: BtwThinkingLevel };
 
 /**
- * Read the side-agent model config from ~/.pi/agent/btw.json.
+ * Read the side-agent model config from ~/.pi/agent/extensions/btw/config.json.
  * A missing file or empty `model` means "follow the main session". Anything that
  * looks like a broken config throws so it gets reported, never silently ignored.
  */
 function readBtwModelResolution(ctx: ExtensionCommandContext): BtwModelResolution {
-	const configPath = join(getAgentDir(), BTW_CONFIG_FILENAME);
+	const configPath = join(getAgentDir(), "extensions", "btw", BTW_CONFIG_FILENAME);
 	let raw: string;
 	try {
 		raw = fs.readFileSync(configPath, "utf8");
@@ -246,7 +246,7 @@ export default function btw(pi: ExtensionAPI) {
 		if (subSession) return subSession;
 		const model = resolution.configured ? resolution.model : ctx.model;
 		if (!model) {
-			notify(ctx, "No active model for /btw (pin one via ~/.pi/agent/btw.json)", "error");
+			notify(ctx, "No active model for /btw (pin one via ~/.pi/agent/extensions/btw/config.json)", "error");
 			return null;
 		}
 		const resourceLoader = createBtwResourceLoader(ctx);
@@ -303,7 +303,7 @@ export default function btw(pi: ExtensionAPI) {
 			setStatus("Still answering — press Esc to abort first.");
 			return;
 		}
-		// Re-read on every ask so edits to btw.json apply without a restart.
+		// Re-read on every ask so edits to the config apply without a restart.
 		let resolution: BtwModelResolution;
 		try {
 			resolution = readBtwModelResolution(ctx);

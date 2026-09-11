@@ -19,7 +19,8 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Markdown, Text } from "@earendil-works/pi-tui";
 import {
-  CONFIG_FILENAME,
+  GLOBAL_CONFIG_FILENAME,
+  PROJECT_CONFIG_FILENAME,
   type EffectiveConfig,
   loadEffectiveConfig,
   type ModelReference,
@@ -389,8 +390,8 @@ async function loadConfig(ctx: ExtensionContext): Promise<EffectiveConfig> {
 
 function getConfigPaths(ctx: ExtensionContext): SlyePaths {
   return {
-    global: join(getAgentDir(), CONFIG_FILENAME),
-    project: join(ctx.cwd, CONFIG_DIR_NAME, CONFIG_FILENAME),
+    global: join(getAgentDir(), "extensions", "slye", GLOBAL_CONFIG_FILENAME),
+    project: join(ctx.cwd, CONFIG_DIR_NAME, PROJECT_CONFIG_FILENAME),
   };
 }
 

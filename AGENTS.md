@@ -14,8 +14,9 @@ Remote: `github:Miskamyasa/pi-agent-config.git`. Branch: `main`.
 - `agent/skills/` — skill instruction files (e.g. `mnemosyne-memory/`).
 - `agent/themes/` — theme JSON files (e.g. `e-ink.json`, `e-ink-dark.json`).
 - `agent/npm/` — install root for npm pi packages (tracked `package.json`, gitignored `node_modules`).
-- `agent/settings.json` — main pi settings (provider, model, theme, per-extension config).
-- `agent/*.json` — per-extension state and config (see "Config & state files").
+- `agent/settings.json` — main pi settings (provider, model, theme).
+- `agent/*.json` — agent-level settings and machine-local state; extension
+  config lives in each extension folder (see "Config & state files").
 - `.codegraph/` — CodeGraph index database. Machine-local, gitignored.
 - `README.md`, `LICENSE`, `.gitignore`.
 
@@ -62,29 +63,56 @@ Custom extensions in this repo: `on-demand-context`, `codegraph-enhanced`,
 `pi-tool-display` folder holds only a `config.json` (the code is the npm
 package `pi-tool-display`, declared in `settings.json` `packages`).
 
-## Config & state files (under `agent/`)
+## Config & state files
 
-Tracked (committed):
+Extension config lives in the extension folder:
+`<agentDir>/extensions/<name>/config.json`, that is
+`agent/extensions/<name>/config.json` by default. This matches
+`pi-tool-display`, whose folder holds only its `config.json`.
+
+The goal is the config that belongs to the agent-dir install, not to a code
+copy. `__dirname` and `import.meta.url` resolve the code location, which is
+`agent/npm/node_modules/<pkg>` for an npm install, differs for a project-local
+`.pi/extensions/<name>/` copy, and ignores `PI_CODING_AGENT_DIR`. Resolve the
+file with `join(getAgentDir(), "extensions", "<name>", "config.json")`.
+
+Global:
+
+- `extensions/on-demand-context/config.json` — `workingDirOnly`,
+  `hideContents`. Currently `workingDirOnly: false`, so context files load from
+  outside the launch dir.
+- `extensions/btw/config.json`, `extensions/slye/config.json`,
+  `extensions/mnemosyne/config.json` — per-extension config.
+
+A dynamic state file stays under `agent/`, not in the extension folder, because
+nothing hand-edits it and its path is an extension constant:
+
+- `pi-cpa.json` — `cpa` extension's fetched model cache. Kept separate from
+  `models-store.json` because `cpa/index.ts` sets a custom `STATE_PATH`.
+
+Project-local (trusted projects only) — override the matching global config:
+
+- `.pi/slye.json`.
+- `.pi/on-demand-context.json`.
+
+Agent-level files:
 
 - `settings.json` — main settings. String values may use `${ENV_VAR}`
   expansion for secrets (e.g. `"token": "${MEMORY_MCP_TOKEN}"`).
-- `on-demand-context.json` — `workingDirOnly`, `hideContents`. Currently
-  `workingDirOnly: false`, so context files load from outside the launch dir.
-- `btw.json`, `slye.json`, `mnemosyne.json` — per-extension config.
 
 Machine-local (gitignored — caches, credentials, per-project state):
 
 - `auth.json` — provider credentials. Never commit.
 - `trust.json` — per-project trust flags.
 - `models-store.json` — default model store.
-- `pi-cpa.json` — `cpa` extension's own model cache. Kept separate from
-  `models-store.json` because `cpa/index.ts` sets a custom `STATE_PATH`.
+- `pi-cpa.json` — `cpa` model cache.
 - `sessions/` — session journals.
 
-When you add an extension that persists state, write to a dedicated
-`<name>.json` in `agent/` via `getAgentDir()`, and add it to `.gitignore`
-if it is a cache or machine-local state. Do not reuse another extension's
-file.
+When you add an extension, put hand-edited config in
+`<agentDir>/extensions/<name>/config.json` via `getAgentDir()`. Do not reuse
+another extension's file. Put generated, dynamic state in
+`<agentDir>/<name>.json` instead, so it cannot overwrite hand-edited config, and
+add the path to the root `.gitignore`. `pi-cpa.json` is the precedent.
 
 ## Validating changes
 

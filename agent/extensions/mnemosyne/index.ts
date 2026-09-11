@@ -25,7 +25,7 @@
  * no get_all action because the mnemosyne MCP surface has no list-all tool.
  *
  * Backend: a hosted `mnemosyne mcp --transport streamable-http` server.
- * Configuration via agent/mnemosyne.json or environment
+ * Configuration via <agentDir>/extensions/mnemosyne/config.json or environment
  * (MNEMOSYNE_URL, MEMORY_MCP_TOKEN, MNEMOSYNE_INSECURE=1). Project scoping
  * maps to mnemosyne memory banks: "bankScope": "project" suffixes the bank
  * with `-project-<12-char cwd hash>`.

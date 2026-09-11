@@ -51,7 +51,7 @@ export interface MemoryItem {
   score?: number;
 }
 
-const CONFIG_FILENAME = "mnemosyne.json";
+const CONFIG_FILENAME = "config.json";
 const DEFAULT_URL = "https://mnemosyne.paragraph.red/mcp";
 
 // mnemosyne/core/banks.py `_validate_bank_name`: alphanumeric, hyphen,
@@ -91,7 +91,7 @@ function expandConfig<T>(value: T): T {
 }
 
 function readConfigFile(): Record<string, unknown> {
-  const configPath = path.join(getAgentDir(), CONFIG_FILENAME);
+  const configPath = path.join(getAgentDir(), "extensions", "mnemosyne", CONFIG_FILENAME);
   let raw: string;
   try {
     raw = readFileSync(configPath, "utf8");

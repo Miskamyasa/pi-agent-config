@@ -10,7 +10,7 @@
  * LOCAL PATCH: a context file read directly by the model is already in
  * the conversation as a tool result — it is marked seen and never injected.
  *
- * Config: <agentDir>/on-demand-context.json (global),
+ * Config: <agentDir>/extensions/on-demand-context/config.json (global),
  * <cwd>/.pi/on-demand-context.json (project, trusted only; project wins).
  * Keys: workingDirOnly (default true), hideContents (default false).
  * Runtime toggles: /odc-working-dir-only on|off, /odc-hide-contents on|off.
@@ -31,7 +31,8 @@ const DIR_PATH_TOOLS = new Set(["grep", "ls", "find"]);
 // Cap per-file size so one huge context file can't blow the prompt.
 const MAX_FILE_BYTES = 64 * 1024;
 
-const CONFIG_FILE = "on-demand-context.json";
+const GLOBAL_CONFIG_FILE = "config.json";
+const PROJECT_CONFIG_FILE = "on-demand-context.json";
 
 interface ContextFile {
   path: string;
@@ -133,7 +134,7 @@ function persistGlobalConfig(
   key: "workingDirOnly" | "hideContents",
   value: boolean,
 ): string | null {
-  const p = join(getAgentDir(), CONFIG_FILE);
+  const p = join(getAgentDir(), "extensions", "on-demand-context", GLOBAL_CONFIG_FILE);
   try {
     const cur = readJsonFile(p);
     cur[key] = value;
@@ -161,9 +162,9 @@ function readJsonFile(p: string): Record<string, unknown> {
 // The project file is skipped unless the project is trusted: an untrusted
 // project must not steer a user/global extension's behavior.
 export function loadConfig(cwd: string, projectTrusted: boolean): Config {
-  const g = readJsonFile(join(getAgentDir(), CONFIG_FILE));
+  const g = readJsonFile(join(getAgentDir(), "extensions", "on-demand-context", GLOBAL_CONFIG_FILE));
   const p = projectTrusted
-    ? readJsonFile(join(cwd, CONFIG_DIR_NAME, CONFIG_FILE))
+    ? readJsonFile(join(cwd, CONFIG_DIR_NAME, PROJECT_CONFIG_FILE))
     : {};
   return mergeConfig(g, p);
 }

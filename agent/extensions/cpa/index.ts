@@ -3,12 +3,10 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-// ─── Configuration ──────────────────────────────────────────────────
-
 const envUrl = typeof process !== "undefined" ? process.env?.CPA_BASE_URL : undefined;
 const BASE_URL = envUrl || "http://localhost:8317";
 
-// Settings file, stores cached model catalog.
+// Settings file stores cached model catalog.
 const STATE_PATH = join(getAgentDir(), "pi-cpa.json");
 
 // Catalog lifetime; the endpoint sends no Cache‑Control hint.
@@ -30,9 +28,7 @@ const EMPTY_STATE: State = { modelsFetchedAt: null, modelsExpireAt: null, models
 let state: State = { ...EMPTY_STATE };
 let refreshInFlight: Promise<ProviderModelConfig[]> | null = null;
 
-// ─── Entry Point ────────────────────────────────────────────────────
-
-export default async function (pi: ExtensionAPI) {
+export default async function customAiProvidersProxy(pi: ExtensionAPI) {
   // Load cached state and register any cached models.
   state = await readState();
   registerModels(pi, state.models ?? []);
@@ -68,8 +64,6 @@ export default async function (pi: ExtensionAPI) {
     },
   });
 }
-
-// ─── Model Catalog ─────────────────────────────────────────────────
 
 function registerModels(pi: ExtensionAPI, models: ProviderModelConfig[]): void {
   pi.registerProvider("cpa", {
@@ -261,8 +255,6 @@ function formatName(id: string): string {
   const model = id.includes('/') ? id.split('/').pop()! : id;
   return model.replace(/-/g, " ").trim();
 }
-
-// ─── Types ──────────────────────────────────────────────────────────
 
 interface State {
   modelsFetchedAt: number | null;
