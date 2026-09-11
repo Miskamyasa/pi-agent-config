@@ -1,5 +1,7 @@
 /**
  * pi-memory-mnemosyne — Mnemosyne semantic memory extension for pi.
+ * Local patched copy of TGYD-helige/pi-memory-mem0, reworked to use a hosted
+ * Mnemosyne server.
  *
  * Memory modes ("memoryMode"):
  * - **passive**: automatic capture + recall injection only

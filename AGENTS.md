@@ -44,10 +44,18 @@ Conventions when editing or adding an extension:
   break `instanceof` checks and event typing.
 - TypeScript is `strict`, `noEmit`. Prefer pure helpers (exported, no side
   effects) so they stay testable and show up in CodeGraph.
-- Two extensions are patched forks. Keep the `LOCAL PATCH` markers and the
-  upstream header comment when editing them:
+- Five extensions are patched forks. Preserve any `LOCAL PATCH` markers and
+  upstream attribution when editing them. Only `on-demand-context` actually
+  carries `LOCAL PATCH` markers in its source; the others are forks without
+  them.
   - `on-demand-context` — fork of `@quartermaster-labs/pi-on-demand-context`.
   - `codegraph-enhanced` — fork of `EstebanForge/pi-codegraph-enhanced`.
+  - `slye` — fork of `wtfzambo/speak-like-you-eat`.
+  - `btw` — fork of `L2ncE/pi-btw`.
+  - `pi-memory-mnemosyne` — fork of `TGYD-helige/pi-memory-mem0`, reworked to
+    use a hosted Mnemosyne server.
+- `subagent` is based on the pi extension examples. `cpa` and `rg` are
+  original to this repo.
 
 Custom extensions in this repo: `on-demand-context`, `codegraph-enhanced`,
 `rg`, `subagent`, `slye`, `btw`, `cpa`, `pi-memory-mnemosyne`. The

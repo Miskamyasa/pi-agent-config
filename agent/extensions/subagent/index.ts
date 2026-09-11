@@ -1,5 +1,6 @@
 /**
  * Subagent Tool - Delegate tasks to specialized agents
+ * Based on the pi extension examples.
  *
  * Spawns a separate `pi` process for each subagent invocation,
  * giving it an isolated context window.

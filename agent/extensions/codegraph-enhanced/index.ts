@@ -1,3 +1,9 @@
+/**
+ * CodeGraph Enhanced Extension
+ * Local patched copy of EstebanForge/pi-codegraph-enhanced.
+ *
+ * CodeGraph structural-analysis tools and project indexing controls.
+ */
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { stat } from "node:fs/promises";

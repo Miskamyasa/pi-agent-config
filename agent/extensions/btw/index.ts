@@ -1,3 +1,10 @@
+/**
+ * btw Extension
+ * Local patched copy of L2ncE/pi-btw.
+ *
+ * Ask a quick side question in an overlay without interrupting the main
+ * conversation.
+ */
 import * as fs from "node:fs";
 import { join } from "node:path";
 

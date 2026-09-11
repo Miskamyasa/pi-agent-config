@@ -1,3 +1,9 @@
+/**
+ * Slye Extension
+ * Local patched copy of wtfzambo/speak-like-you-eat.
+ *
+ * Rewrites assistant responses in a more human, conversational tone.
+ */
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
