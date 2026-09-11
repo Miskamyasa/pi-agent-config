@@ -60,9 +60,6 @@
     "captureTurns": true,
     "distillModel": "openai/gpt-5.6-luna"
   },
-  "aside": {
-    "model": "cpa/nube/glm-5.3-flash"
-  },
   "fullscreenCopyOnSelect": true,
   "fullscreenScrollbar": "auto",
   "fullscreenExitOutput": "resume-hint",
