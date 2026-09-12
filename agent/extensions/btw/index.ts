@@ -59,6 +59,9 @@ const BTW_SYSTEM_PROMPT = [
 ].join(" ");
 
 const MAX_HISTORY_EXCHANGES = 20;
+// Each session owns a live side agent; keep only a few so the seeded main
+// conversation is not copied into memory without bound.
+const MAX_SIDE_SESSIONS = 10;
 
 const BTW_CONFIG_FILENAME = "config.json";
 const BTW_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
@@ -145,6 +148,19 @@ interface BtwActive {
 	toolName: string | null;
 }
 
+interface BtwSession {
+	subSession: AgentSession | null;
+	subscribed: boolean;
+	exchanges: BtwExchange[];
+	// Points at the currently displayed exchange; after every ask it is the newest one.
+	viewIndex: number;
+	active: BtwActive | null;
+}
+
+function createBtwSession(): BtwSession {
+	return { subSession: null, subscribed: false, exchanges: [], viewIndex: 0, active: null };
+}
+
 /** The single source for "which exchange is on screen": live answer, or a history entry. */
 interface BtwSelection {
 	question: string;
@@ -190,13 +206,15 @@ function createBtwResourceLoader(ctx: ExtensionCommandContext): ResourceLoader {
 }
 
 export default function btw(pi: ExtensionAPI) {
-	const exchanges: BtwExchange[] = [];
-	let active: BtwActive | null = null;
-	// Points at the currently displayed exchange; after every ask it is the newest one.
-	let viewIndex = 0;
+	// Each session keeps its own side agent and its own Q&A thread. The popup
+	// shows one session at a time; `n` starts a new one.
+	const sessions: BtwSession[] = [createBtwSession()];
+	let sessionIndex = 0;
 	let overlayRuntime: OverlayRuntime | null = null;
-	let subSession: AgentSession | null = null;
-	let subscribed = false;
+
+	function currentSession(): BtwSession {
+		return sessions[sessionIndex];
+	}
 
 	function setStatus(status: string): void {
 		if (overlayRuntime?.setStatus) overlayRuntime.setStatus(status);
@@ -215,35 +233,43 @@ export default function btw(pi: ExtensionAPI) {
 	}
 
 	function modelLabel(): string {
-		const model = subSession?.model;
+		const model = currentSession().subSession?.model;
 		return model ? `${model.provider}/${model.id}` : "";
 	}
 
+	function sessionLabel(): string {
+		return `${sessionIndex + 1}/${sessions.length}`;
+	}
+
 	function currentSelection(): BtwSelection | null {
-		if (active) return { question: active.question, answer: active.answer, label: "answering…" };
-		const exchange = exchanges[viewIndex];
+		const session = currentSession();
+		if (session.active) {
+			return { question: session.active.question, answer: session.active.answer, label: "answering…" };
+		}
+		const exchange = session.exchanges[session.viewIndex];
 		if (!exchange) return null;
 		const suffix = exchange.aborted ? " (aborted)" : exchange.error ? " (error)" : "";
 		return {
 			question: exchange.question,
 			answer: exchange.answer,
 			error: exchange.error,
-			label: `${viewIndex + 1}/${exchanges.length}${suffix}`,
+			label: `${session.viewIndex + 1}/${session.exchanges.length}${suffix}`,
 		};
 	}
 
-	function capHistory(): void {
-		while (exchanges.length > MAX_HISTORY_EXCHANGES) {
-			exchanges.shift();
-			viewIndex = Math.max(0, viewIndex - 1);
+	function capHistory(session: BtwSession): void {
+		while (session.exchanges.length > MAX_HISTORY_EXCHANGES) {
+			session.exchanges.shift();
+			session.viewIndex = Math.max(0, session.viewIndex - 1);
 		}
 	}
 
 	async function ensureBtwSession(
+		session: BtwSession,
 		ctx: ExtensionCommandContext,
 		resolution: BtwModelResolution,
 	): Promise<AgentSession | null> {
-		if (subSession) return subSession;
+		if (session.subSession) return session.subSession;
 		const model = resolution.configured ? resolution.model : ctx.model;
 		if (!model) {
 			notify(ctx, "No active model for /btw (pin one via ~/.pi/agent/extensions/btw/config.json)", "error");
@@ -261,7 +287,7 @@ export default function btw(pi: ExtensionAPI) {
 			buildSessionContext(ctx.sessionManager.getEntries(), ctx.sessionManager.getLeafId()).messages,
 		);
 		for (const message of seed) sessionManager.appendMessage(message);
-		const { session } = await createAgentSession({
+		const { session: agentSession } = await createAgentSession({
 			model,
 			thinkingLevel: resolution.configured ? (resolution.thinking ?? pi.getThinkingLevel()) : pi.getThinkingLevel(),
 			tools: ["read", "grep", "find", "ls"],
@@ -271,35 +297,38 @@ export default function btw(pi: ExtensionAPI) {
 			// into the user's global settings.json through the file-backed default.
 			settingsManager: SettingsManager.inMemory(),
 		});
-		subSession = session;
-		return session;
+		session.subSession = agentSession;
+		return agentSession;
 	}
 
-	function handleSessionEvent(event: AgentSessionEvent): void {
-		if (!active) return;
+	function handleSessionEvent(session: BtwSession, event: AgentSessionEvent): void {
+		if (!session.active) return;
 		if (event.type === "message_update" && event.message.role === "assistant") {
-			active.answer = contentText(event.message.content).trim();
-			refreshOverlay();
+			session.active.answer = contentText(event.message.content).trim();
 		} else if (event.type === "tool_execution_start") {
-			active.toolName = event.toolName;
-			refreshOverlay();
+			session.active.toolName = event.toolName;
 		} else if (event.type === "tool_execution_end") {
-			active.toolName = null;
+			session.active.toolName = null;
+		} else {
+			return;
+		}
+		if (session === currentSession()) refreshOverlay();
+	}
+
+	function finishExchange(session: BtwSession, exchange: BtwExchange, status: string): void {
+		session.exchanges.push(exchange);
+		session.active = null;
+		session.viewIndex = session.exchanges.length - 1;
+		capHistory(session);
+		if (session === currentSession()) {
+			setStatus(status);
 			refreshOverlay();
 		}
 	}
 
-	function finishExchange(exchange: BtwExchange, status: string): void {
-		exchanges.push(exchange);
-		active = null;
-		viewIndex = exchanges.length - 1;
-		capHistory();
-		setStatus(status);
-		refreshOverlay();
-	}
-
 	async function ask(ctx: ExtensionCommandContext, question: string): Promise<void> {
-		if (active) {
+		const session = currentSession();
+		if (session.active) {
 			setStatus("Still answering — press Esc to abort first.");
 			return;
 		}
@@ -311,51 +340,51 @@ export default function btw(pi: ExtensionAPI) {
 			notify(ctx, errorMessage(error), "error");
 			return;
 		}
-		const session = await ensureBtwSession(ctx, resolution);
-		if (!session) return;
+		const agent = await ensureBtwSession(session, ctx, resolution);
+		if (!agent) return;
 
-		if (!subscribed) {
-			session.subscribe(handleSessionEvent);
-			subscribed = true;
+		if (!session.subscribed) {
+			agent.subscribe((event) => handleSessionEvent(session, event));
+			session.subscribed = true;
 		}
 
 		// A pinned model is never re-synced to the main session's; unpinned follows it.
 		try {
 			const target = resolution.configured ? resolution.model : ctx.model;
-			if (target && (session.model?.provider !== target.provider || session.model?.id !== target.id)) {
-				await session.setModel(target);
+			if (target && (agent.model?.provider !== target.provider || agent.model?.id !== target.id)) {
+				await agent.setModel(target);
 			}
-			session.setThinkingLevel(
+			agent.setThinkingLevel(
 				resolution.configured && resolution.thinking ? resolution.thinking : pi.getThinkingLevel(),
 			);
 		} catch {
 			// Keep whatever the sub-session already uses.
 		}
 
-		active = { question, answer: "", toolName: null };
-		refreshOverlay();
-		setStatus("streaming…");
+		session.active = { question, answer: "", toolName: null };
+		if (session === currentSession()) {
+			refreshOverlay();
+			setStatus("streaming…");
+		}
 
 		try {
-			await session.prompt(question, { source: "extension" });
+			await agent.prompt(question, { source: "extension" });
 		} catch (error) {
-			finishExchange(
-				{ question, answer: active.answer, error: error instanceof Error ? error.message : String(error) },
-				"error",
-			);
+			finishExchange(session, { question, answer: session.active?.answer ?? "", error: errorMessage(error) }, "error");
 			return;
 		}
 
-		const response = [...session.messages].reverse().find((message) => message.role === "assistant");
+		const response = [...agent.messages].reverse().find((message) => message.role === "assistant");
 		if (response?.stopReason === "aborted") {
-			finishExchange({ question, answer: contentText(response.content).trim(), aborted: true }, "aborted");
+			finishExchange(session, { question, answer: contentText(response.content).trim(), aborted: true }, "aborted");
 		} else if (response && response.stopReason !== "error") {
-			finishExchange({ question, answer: contentText(response.content).trim() || "(no answer)" }, "");
+			finishExchange(session, { question, answer: contentText(response.content).trim() || "(no answer)" }, "");
 		} else {
 			finishExchange(
+				session,
 				{
 					question,
-					answer: active.answer,
+					answer: session.active?.answer ?? "",
 					error: response?.errorMessage ?? "The side agent returned an error.",
 				},
 				"error",
@@ -364,12 +393,43 @@ export default function btw(pi: ExtensionAPI) {
 	}
 
 	async function abortActive(): Promise<void> {
-		if (!active || !subSession) return;
+		const session = currentSession();
+		if (!session.active || !session.subSession) return;
 		try {
-			await subSession.abort();
+			await session.subSession.abort();
 		} catch {
 			// Abort races are fine; the prompt() call resolves with stopReason "aborted".
 		}
+	}
+
+	/** Drop a session's side agent; only the oldest session is evicted this way. */
+	function disposeSession(session: BtwSession): void {
+		if (session.active) void session.subSession?.abort().catch(() => {});
+		session.subSession?.dispose();
+		session.subSession = null;
+		session.subscribed = false;
+		session.active = null;
+	}
+
+	/** Start a fresh side session seeded from the main session on its first ask. */
+	function newSession(): void {
+		if (sessions.length >= MAX_SIDE_SESSIONS) {
+			const oldest = sessions.shift();
+			if (oldest) disposeSession(oldest);
+			sessionIndex = Math.max(0, sessionIndex - 1);
+		}
+		sessions.push(createBtwSession());
+		sessionIndex = sessions.length - 1;
+		setStatus("New side session — ask a question.");
+		refreshOverlay();
+	}
+
+	function selectSession(delta: number): void {
+		const next = sessionIndex + delta;
+		if (next < 0 || next >= sessions.length) return;
+		sessionIndex = next;
+		setStatus("");
+		refreshOverlay();
 	}
 
 	function closeOverlay(): void {
@@ -413,19 +473,20 @@ export default function btw(pi: ExtensionAPI) {
 					runtime.finish = () => done();
 
 					const overlay = new BtwOverlayComponent(tui, theme, {
-						readExchanges: () => exchanges,
-						readActive: () => active,
-						readViewIndex: () => viewIndex,
+						readExchanges: () => currentSession().exchanges,
+						readActive: () => currentSession().active,
+						readViewIndex: () => currentSession().viewIndex,
 						readCurrent: () => currentSelection(),
 						readModelLabel: () => modelLabel(),
+						readSessionLabel: () => sessionLabel(),
 						setViewIndex: (index) => {
-							viewIndex = index;
+							currentSession().viewIndex = index;
 						},
 						onSubmit: (value) => {
 							void ask(ctx, value.trim());
 						},
 						onDismiss: () => {
-							if (active) {
+							if (currentSession().active) {
 								void abortActive();
 								return;
 							}
@@ -433,6 +494,12 @@ export default function btw(pi: ExtensionAPI) {
 						},
 						onCopy: () => {
 							void copyCurrentAnswer(ctx);
+						},
+						onNewSession: () => {
+							newSession();
+						},
+						onSelectSession: (delta) => {
+							selectSession(delta);
 						},
 						onUnfocus: () => {
 							overlayRuntime?.handle?.unfocus();
@@ -514,10 +581,13 @@ interface BtwOverlayCallbacks {
 	readViewIndex: () => number;
 	readCurrent: () => BtwSelection | null;
 	readModelLabel: () => string;
+	readSessionLabel: () => string;
 	setViewIndex: (index: number) => void;
 	onSubmit: (value: string) => void;
 	onDismiss: () => void;
 	onCopy: () => void;
+	onNewSession: () => void;
+	onSelectSession: (delta: number) => void;
 	onUnfocus: () => void;
 }
 
@@ -576,8 +646,20 @@ class BtwOverlayComponent implements Component, Focusable {
 			this.callbacks.onDismiss();
 			return;
 		}
+		if (matchesKey(data, Key.alt("left"))) {
+			this.callbacks.onSelectSession(-1);
+			return;
+		}
+		if (matchesKey(data, Key.alt("right"))) {
+			this.callbacks.onSelectSession(1);
+			return;
+		}
 		const inputEmpty = this.input.getText().length === 0;
 		if (inputEmpty) {
+			if (data === "n" || data === "N") {
+				this.callbacks.onNewSession();
+				return;
+			}
 			if (matchesKey(data, Key.left)) {
 				const index = this.callbacks.readViewIndex();
 				if (!this.callbacks.readActive() && index > 0) {
@@ -707,6 +789,7 @@ class BtwOverlayComponent implements Component, Focusable {
 		const statusText =
 			this.status ||
 			(active ? `streaming…${active.toolName ? ` · ${active.toolName}` : ""}` : view ? view.label : "ready");
+		const sessionText = ` · session ${this.callbacks.readSessionLabel()}`;
 		const modelText = (() => {
 			const label = this.callbacks.readModelLabel();
 			return label ? ` · ${label}` : "";
@@ -716,7 +799,7 @@ class BtwOverlayComponent implements Component, Focusable {
 
 		const lines: string[] = [
 			this.borderLine(innerWidth, "top"),
-			this.frameLine(dim("accent", `btw · side question${modelText}${viewLabel}`), innerWidth),
+			this.frameLine(dim("accent", `btw · side question${sessionText}${modelText}${viewLabel}`), innerWidth),
 			this.ruleLine(innerWidth),
 			...visible.map((line) => this.frameLine(line, innerWidth)),
 			this.ruleLine(innerWidth),
@@ -725,7 +808,7 @@ class BtwOverlayComponent implements Component, Focusable {
 			this.frameLine(
 				dim(
 					"dim",
-					`enter ask · c copy · ←→ history · alt+/ main editor${scrollHint} · esc ${active ? "abort" : "close"}`,
+					`enter ask · n new · c copy · ←→ history · alt+←→ session · alt+/ editor${scrollHint} · esc ${active ? "abort" : "close"}`,
 				),
 				innerWidth,
 			),
