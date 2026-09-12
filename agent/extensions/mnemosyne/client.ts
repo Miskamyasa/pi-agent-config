@@ -41,7 +41,6 @@ export interface MnemosyneConfig {
   topK: number;
   bank: string;
   bankScope: BankScope;
-  legacyBanks: string[];
   captureTurns: boolean;
   distillModel: string;
   consolidateOnShutdown: boolean;
@@ -117,7 +116,24 @@ function readConfigFile(): Record<string, unknown> {
 }
 
 function normalizeMemoryMode(v: unknown): MnemosyneMemoryMode {
-  return v === "active" || v === "passive" || v === "hybrid" ? v : "hybrid";
+  switch (v) {
+    case "active":
+    case "passive":
+    case "hybrid":
+      return v;
+    default:
+      return "hybrid";
+  }
+}
+
+function normalizeBankScope(v: unknown): BankScope {
+  switch (v) {
+    case "project":
+    case "hybrid":
+      return v;
+    default:
+      return "exact";
+  }
 }
 
 export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
@@ -132,8 +148,7 @@ export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
   if (!url || !token) return undefined;
 
   const bank = (typeof cfg.bank === "string" && cfg.bank.trim()) || "default";
-  const bankScope: BankScope =
-    cfg.bankScope === "project" || cfg.bankScope === "hybrid" ? cfg.bankScope : "exact";
+  const bankScope = normalizeBankScope(cfg.bankScope);
   const bankProblem = invalidBankReason(bank);
   if (bankProblem) {
     console.error(`[mnemosyne] ${bankProblem}; extension disabled`);
@@ -148,7 +163,6 @@ export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
     topK: typeof cfg.topK === "number" && cfg.topK > 0 ? Math.min(cfg.topK, 50) : 5,
     bank,
     bankScope,
-    legacyBanks: parseLegacyBanks(cfg.legacyBanks),
     captureTurns: cfg.captureTurns === true,
     distillModel:
       typeof cfg.distillModel === "string" && cfg.distillModel.trim()
@@ -185,19 +199,6 @@ export function projectBankName(cwd: string): string {
   return `${PROJECT_PREFIX}${encoded.slice(0, budget)}-${hash}`;
 }
 
-/** Read-only extra banks (renamed-away names) kept in the recall set. */
-function parseLegacyBanks(v: unknown): string[] {
-  if (!Array.isArray(v)) return [];
-  return v
-    .filter((b): b is string => typeof b === "string" && b.trim() !== "")
-    .map((b) => b.trim())
-    .filter((b) => {
-      const problem = invalidBankReason(b);
-      if (problem) console.error(`[mnemosyne] ignoring legacy bank: ${problem}`);
-      return !problem;
-    });
-}
-
 /**
  * Resolve the bank set for a session. The base bank must already be
  * validated by loadMnemosyneConfig. Project banks are named from the cwd
@@ -206,32 +207,25 @@ function parseLegacyBanks(v: unknown): string[] {
  * "exact" and "project" resolve to a single write bank and collapse both
  * write targets onto it. "hybrid" keeps the base bank as a shared global
  * bank alongside the project bank: reads fan out over both, writes default
- * to the project bank, and resolve() routes an explicit target. legacyBanks
- * (renamed-away names) are appended to the read set and never written, so
- * rows there keep recalling until migrated out.
+ * to the project bank, and resolve() routes an explicit target.
  */
 export function resolveBanks(
-  cfg: Pick<MnemosyneConfig, "bank" | "bankScope" | "legacyBanks">,
+  cfg: Pick<MnemosyneConfig, "bank" | "bankScope">,
   cwd: string,
 ): BankSet {
   const project = projectBankName(cwd);
-  const banks =
-    cfg.bankScope === "exact"
-      ? [cfg.bank]
-      : cfg.bankScope === "project"
-        ? [project]
-        : [cfg.bank, project];
-  const all = [...banks, ...cfg.legacyBanks.filter((b) => !banks.includes(b))];
-  return {
-    all,
-    defaultWrite: cfg.bankScope === "exact" ? cfg.bank : project,
-    resolve: (target) =>
-      cfg.bankScope === "hybrid" && target === "global"
-        ? cfg.bank
-        : cfg.bankScope === "exact"
-          ? cfg.bank
-          : project,
-  };
+  switch (cfg.bankScope) {
+    case "exact":
+      return { all: [cfg.bank], defaultWrite: cfg.bank, resolve: () => cfg.bank };
+    case "project":
+      return { all: [project], defaultWrite: project, resolve: () => project };
+    default:
+      return {
+        all: [cfg.bank, project],
+        defaultWrite: project,
+        resolve: (target) => (target === "global" ? cfg.bank : project),
+      };
+  }
 }
 
 interface ToolPayload {

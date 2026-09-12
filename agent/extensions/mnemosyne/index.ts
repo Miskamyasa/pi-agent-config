@@ -85,7 +85,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
   // Ids of memories injected this session; later turns skip them to avoid
   // re-injecting facts the model already has in context.
   let recalledIds = new Set<string>();
-  let banks: BankSet = resolveBanks({ bank: "default", bankScope: "exact", legacyBanks: [] }, "");
+  let banks: BankSet = resolveBanks({ bank: "default", bankScope: "exact" }, "");
   let topK = 5;
   let captureTurns = false;
   let distillModel = "openai/gpt-5.6-luna";
@@ -325,8 +325,15 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
           }
           const words = rest.split(/\s+/);
           const lead = words[0]?.toLowerCase();
-          const target: BankTarget | undefined =
-            (lead === "global" || lead === "project") && words.length > 1 ? lead : undefined;
+          let target: BankTarget | undefined;
+          if (words.length > 1) {
+            switch (lead) {
+              case "global":
+              case "project":
+                target = lead;
+                break;
+            }
+          }
           const content = redactMemoryText((target ? words.slice(1) : words).join(" "));
           const bank = banks.resolve(target);
           await provider.add(content, bank);
@@ -428,8 +435,13 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
               const content = redactMemoryText(String(params.content ?? "").trim());
               if (!content) return errorResult("content is required for the add action.");
               const importance = typeof params.importance === "number" ? params.importance : undefined;
-              const target: BankTarget | undefined =
-                params.bank === "global" || params.bank === "project" ? params.bank : undefined;
+              let target: BankTarget | undefined;
+              switch (params.bank) {
+                case "global":
+                case "project":
+                  target = params.bank;
+                  break;
+              }
               const bank = bs.resolve(target);
               const memoryId = await active.add(content, bank, importance);
               return textResult(`Saved memory ${memoryId} (bank ${bank}): ${formatRecalledMemory(content)}`);
