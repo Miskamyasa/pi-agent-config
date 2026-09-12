@@ -26,9 +26,12 @@
  *
  * Backend: a hosted `mnemosyne mcp --transport streamable-http` server.
  * Configuration via <agentDir>/extensions/mnemosyne/config.json or environment
- * (MNEMOSYNE_URL, MEMORY_MCP_TOKEN, MNEMOSYNE_INSECURE=1). Project scoping
- * maps to mnemosyne memory banks: "bankScope": "project" suffixes the bank
- * with `-project-<12-char cwd hash>`.
+ * (MNEMOSYNE_URL, MEMORY_MCP_TOKEN, MNEMOSYNE_INSECURE=1). Bank scoping
+ * maps to mnemosyne memory banks: "bankScope" is "exact" (one shared bank),
+ * "project" (bank suffixed with `-project-<12-char cwd hash>`), or "hybrid"
+ * (shared bank plus project bank: reads fan out over both, writes default
+ * to the project bank, and the mnemosyne_memory add action can target
+ * "global").
  */
 import {
   getMarkdownTheme,
@@ -42,7 +45,10 @@ import { Type } from "typebox";
 import {
   createMnemosyneProvider,
   loadMnemosyneConfig,
-  resolveBank,
+  resolveBanks,
+  searchBanks,
+  type BankSet,
+  type BankTarget,
   type MemoryItem,
   type MnemosyneProvider,
 } from "./client.ts";
@@ -79,7 +85,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
   // Ids of memories injected this session; later turns skip them to avoid
   // re-injecting facts the model already has in context.
   let recalledIds = new Set<string>();
-  let bank = "default";
+  let banks: BankSet = resolveBanks({ bank: "default", bankScope: "exact" }, "");
   let topK = 5;
   let captureTurns = false;
   let distillModel = "openai/gpt-5.6-luna";
@@ -104,7 +110,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     }
 
     provider = createMnemosyneProvider(config);
-    bank = resolveBank(config, ctx.cwd ?? process.cwd());
+    banks = resolveBanks(config, ctx.cwd ?? process.cwd());
     topK = config.topK;
     captureTurns = config.captureTurns;
     distillModel = config.distillModel;
@@ -116,7 +122,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     // Fire-and-forget reachability probe so the status line reports the
     // real server state, not just local config presence.
     provider
-      .stats(bank)
+      .stats(banks.all[0])
       .then(() => {
         if (epoch === sessionEpoch) ctx.ui.setStatus(STATUS_KEY, `💾 MEM: http/${activeMemoryMode}`);
       })
@@ -136,7 +142,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
         createMnemosyneMemoryTool({
           getProvider: () => provider,
           isEnabled: () => provider !== undefined,
-          bank: () => bank,
+          banks: () => banks,
           topK,
         }),
       );
@@ -148,7 +154,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     const text = event.text ?? "";
     if (!text.trim()) return;
     const query = redactMemoryText(text);
-    const promise = provider.search(query, topK, bank);
+    const promise = searchBanks(provider, query, topK, banks.all);
     // A replaced or never-consumed search must not surface as an unhandled rejection.
     promise.catch(() => {});
     prefetch = { query, promise };
@@ -165,7 +171,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     const userText = redactMemoryText(lastUserText);
     lastUserText = "";
     const activeProvider = provider;
-    const activeBank = bank;
+    const activeWriteBank = banks.defaultWrite;
     const activeRegistry = modelRegistry;
     const activeDistillModel = distillModel;
     const transcript = `## User\n\n${userText}\n\n## Assistant\n\n${redactMemoryText(assistantText)}`;
@@ -175,7 +181,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
         if (!activeRegistry) throw new Error("model registry unavailable");
         const facts = await distillFacts(activeRegistry, activeDistillModel, transcript);
         if (facts.length === 0) return;
-        await activeProvider.saveFacts(facts, activeBank);
+        await activeProvider.saveFacts(facts, activeWriteBank);
       })
       .catch((err: unknown) => {
         console.error(
@@ -252,13 +258,15 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     await pendingWrite;
     if (provider && consolidateOnShutdown) {
       // Consolidation is server-side maintenance; never fail shutdown on it.
-      try {
-        await provider.sleep(bank);
-      } catch (err: unknown) {
-        if (process.env.DEBUG?.includes("mnemosyne")) {
-          console.error(
-            `[mnemosyne] sleep failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
+      for (const bank of banks.all) {
+        try {
+          await provider.sleep(bank);
+        } catch (err: unknown) {
+          if (process.env.DEBUG?.includes("mnemosyne")) {
+            console.error(
+              `[mnemosyne] sleep failed on ${bank}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
         }
       }
     }
@@ -271,7 +279,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
 
   pi.registerCommand("mnemosyne", {
     description:
-      "Mnemosyne memory commands. Subcommands: status, health, search <query>, add <text>, delete <memory_id>, sleep.",
+      "Mnemosyne memory commands. Subcommands: status, health, search <query>, add [global|project] <text>, delete <memory_id>, sleep.",
     handler: async (args, ctx) => {
       if (!provider) {
         ctx.ui.notify("Mnemosyne is not active (missing url/token).", "warning");
@@ -283,14 +291,17 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
       switch (sub) {
         case "status": {
           ctx.ui.notify(
-            `Mnemosyne: ${activeUrl} (bank: ${bank}, memoryMode: ${activeMemoryMode || "hybrid"})`,
+            `Mnemosyne: ${activeUrl} (banks: ${banks.all.join(", ")}, memoryMode: ${activeMemoryMode || "hybrid"})`,
             "info",
           );
           break;
         }
         case "health": {
-          const h = await provider.stats(bank);
-          ctx.ui.notify(formatHealth(h), "info");
+          const reports: string[] = [];
+          for (const bank of banks.all) {
+            reports.push(`[${bank}]\n${formatHealth(await provider.stats(bank))}`);
+          }
+          ctx.ui.notify(`Mnemosyne health:\n${reports.join("\n")}`, "info");
           break;
         }
         case "search": {
@@ -298,7 +309,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
             ctx.ui.notify("Usage: /mnemosyne search <query>", "warning");
             break;
           }
-          const results = await provider.search(rest, 10, bank);
+          const results = await searchBanks(provider, rest, 10, banks.all);
           if (results.length === 0) {
             ctx.ui.notify("No relevant memories found.", "info");
           } else {
@@ -309,12 +320,17 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
         }
         case "add": {
           if (!rest) {
-            ctx.ui.notify("Usage: /mnemosyne add <text>", "warning");
+            ctx.ui.notify("Usage: /mnemosyne add [global|project] <text>", "warning");
             break;
           }
-          const content = redactMemoryText(rest);
+          const words = rest.split(/\s+/);
+          const lead = words[0]?.toLowerCase();
+          const target: BankTarget | undefined =
+            (lead === "global" || lead === "project") && words.length > 1 ? lead : undefined;
+          const content = redactMemoryText((target ? words.slice(1) : words).join(" "));
+          const bank = banks.resolve(target);
           await provider.add(content, bank);
-          ctx.ui.notify(`Saved: ${formatRecalledMemory(content)}`, "info");
+          ctx.ui.notify(`Saved to ${bank}: ${formatRecalledMemory(content)}`, "info");
           break;
         }
         case "delete": {
@@ -322,7 +338,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
             ctx.ui.notify("Usage: /mnemosyne delete <memory_id>", "warning");
             break;
           }
-          const status = await provider.delete(rest, bank);
+          const status = await deleteFromAnyBank(provider, rest, banks.all);
           ctx.ui.notify(
             status === "deleted" ? `Deleted memory ${rest}.` : `Memory ${rest} not found.`,
             "info",
@@ -330,7 +346,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
           break;
         }
         case "sleep": {
-          await provider.sleep(bank);
+          for (const bank of banks.all) await provider.sleep(bank);
           ctx.ui.notify("Mnemosyne consolidation finished.", "info");
           break;
         }
@@ -346,7 +362,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
   function createMnemosyneMemoryTool(opts: {
     getProvider: () => MnemosyneProvider | undefined;
     isEnabled: () => boolean;
-    bank: () => string;
+    banks: () => BankSet;
     topK: number;
   }) {
     return {
@@ -357,7 +373,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
         "Memories are durable facts stored in Mnemosyne (BEAM: working + episodic memory).\n\n" +
         "Actions:\n" +
         "- search: hybrid vector+keyword search over memories (requires query)\n" +
-        "- add: store a durable fact (requires content; optional importance 0-1)\n" +
+        "- add: store a durable fact (requires content; optional importance 0-1, optional bank global|project)\n" +
         "- get: fetch one memory by id (requires memory_id from search results)\n" +
         "- delete: remove a memory by id (requires memory_id)\n" +
         "- stats: show server memory statistics\n" +
@@ -366,6 +382,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
       promptGuidelines: [
         "Search mnemosyne_memory BEFORE answering when the request could depend on the user’s past work, preferences, or prior decisions.",
         "Save durable facts proactively — user preferences, corrections, environment facts. Do not save task progress or temporary session state.",
+        "Route adds with the bank param: global for user-wide facts (profile, preferences, requirements), the default project bank for project-specific facts (tech stack, conventions).",
       ],
       parameters: Type.Object({
         action: StringEnum(["search", "add", "get", "delete", "stats"], {
@@ -385,42 +402,54 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
             description: "Importance for add, between 0 and 1. Defaults to 0.5.",
           }),
         ),
+        bank: Type.Optional(
+          StringEnum(["global", "project"], {
+            description:
+              "Target bank for add. global = shared across all projects (user profile, preferences, " +
+              "cross-project requirements); project = current project only (tech stack, project conventions). " +
+              "Defaults to project.",
+          }),
+        ),
       }),
       async execute(_toolCallId: string, params: Record<string, unknown>) {
         const action = String(params.action ?? "");
         if (!opts.isEnabled()) return errorResult("mnemosyne_memory is disabled in this session.");
         const active = opts.getProvider();
         if (!active) return errorResult("Mnemosyne is not active.");
-        const bank = opts.bank();
+        const bs = opts.banks();
         try {
           switch (action) {
             case "search": {
               const query = String(params.query ?? "").trim();
               if (!query) return errorResult("query is required for the search action.");
-              return formatBlock(`## Memories matching "${query}"`, await active.search(query, opts.topK, bank));
+              return formatBlock(`## Memories matching "${query}"`, await searchBanks(active, query, opts.topK, bs.all));
             }
             case "add": {
               const content = redactMemoryText(String(params.content ?? "").trim());
               if (!content) return errorResult("content is required for the add action.");
               const importance = typeof params.importance === "number" ? params.importance : undefined;
+              const target: BankTarget | undefined =
+                params.bank === "global" || params.bank === "project" ? params.bank : undefined;
+              const bank = bs.resolve(target);
               const memoryId = await active.add(content, bank, importance);
-              return textResult(`Saved memory ${memoryId}: ${formatRecalledMemory(content)}`);
+              return textResult(`Saved memory ${memoryId} (bank ${bank}): ${formatRecalledMemory(content)}`);
             }
             case "get": {
               const memoryId = String(params.memory_id ?? "").trim();
               if (!memoryId) return errorResult("memory_id is required for the get action.");
-              const memory = await active.get(memoryId, bank);
+              const memory = await getFromAnyBank(active, memoryId, bs.all);
               if (!memory) return textResult(`Memory ${memoryId} not found.`);
               return textResult(formatMemory(memory));
             }
             case "delete": {
               const memoryId = String(params.memory_id ?? "").trim();
               if (!memoryId) return errorResult("memory_id is required for the delete action.");
-              const status = await active.delete(memoryId, bank);
+              const status = await deleteFromAnyBank(active, memoryId, bs.all);
               return textResult(status === "deleted" ? `Deleted memory ${memoryId}.` : `Memory ${memoryId} not found.`);
             }
             case "stats": {
-              const stats = await active.stats(bank);
+              const stats: Record<string, Record<string, unknown>> = {};
+              for (const bank of bs.all) stats[bank] = await active.stats(bank);
               return textResult(JSON.stringify(stats).slice(0, MAX_STATS_CHARS * 2));
             }
             default:
@@ -455,6 +484,30 @@ function formatBlock(title: string, entries: MemoryItem[]) {
   );
 }
 
+/** Ids are bank-local: try each bank in order until one resolves. */
+async function getFromAnyBank(
+  provider: MnemosyneProvider,
+  memoryId: string,
+  banks: string[],
+): Promise<Record<string, unknown> | undefined> {
+  for (const bank of banks) {
+    const memory = await provider.get(memoryId, bank);
+    if (memory) return memory;
+  }
+  return undefined;
+}
+
+async function deleteFromAnyBank(
+  provider: MnemosyneProvider,
+  memoryId: string,
+  banks: string[],
+): Promise<"deleted" | "not_found"> {
+  for (const bank of banks) {
+    if ((await provider.delete(memoryId, bank)) === "deleted") return "deleted";
+  }
+  return "not_found";
+}
+
 function formatMemory(memory: Record<string, unknown>): string {
   const content = typeof memory.content === "string" ? memory.content : "";
   const id = typeof memory.id === "string" ? memory.id : "";
@@ -464,7 +517,7 @@ function formatMemory(memory: Record<string, unknown>): string {
 
 function formatHealth(h: Record<string, unknown>): string {
   const stats = h.stats && typeof h.stats === "object" ? JSON.stringify(h.stats) : "{}";
-  return `Mnemosyne health:\n- provider: ${h.provider ?? "?"}\n- session: ${h.session_id ?? "?"}\n- stats: ${stats.slice(0, MAX_STATS_CHARS)}`;
+  return `- provider: ${h.provider ?? "?"}\n- session: ${h.session_id ?? "?"}\n- stats: ${stats.slice(0, MAX_STATS_CHARS)}`;
 }
 
 function extractText(msg: { content: string | Array<{ type: string; text?: string }> }): string {

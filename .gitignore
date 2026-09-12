@@ -3,3 +3,4 @@
 /agent/models-store.json
 /agent/pi-cpa.json
 agent/trust.json
+agent/cache/pi-ollama-cloud/cache.json

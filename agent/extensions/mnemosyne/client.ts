@@ -29,7 +29,9 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
  */
 
 export type MnemosyneMemoryMode = "hybrid" | "active" | "passive";
-export type BankScope = "exact" | "project";
+export type BankScope = "exact" | "project" | "hybrid";
+/** Named write target; single-bank scopes collapse both targets onto one bank. */
+export type BankTarget = "global" | "project";
 
 export interface MnemosyneConfig {
   url: string;
@@ -66,7 +68,7 @@ export function invalidBankReason(bank: string, bankScope: BankScope): string | 
     return `bank "${bank}" may contain only letters, digits, hyphens, and underscores`;
   }
   const max =
-    bankScope === "project" ? BANK_NAME_MAX - PROJECT_SUFFIX.length - PROJECT_HASH_LEN : BANK_NAME_MAX;
+    bankScope === "exact" ? BANK_NAME_MAX : BANK_NAME_MAX - PROJECT_SUFFIX.length - PROJECT_HASH_LEN;
   if (bank.length > max) {
     return `bank "${bank}" exceeds ${max} chars (mnemosyne limit 64 incl. "-project-<hash>" suffix)`;
   }
@@ -131,7 +133,8 @@ export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
   if (!url || !token) return undefined;
 
   const bank = (typeof cfg.bank === "string" && cfg.bank.trim()) || "default";
-  const bankScope: BankScope = cfg.bankScope === "project" ? "project" : "exact";
+  const bankScope: BankScope =
+    cfg.bankScope === "project" || cfg.bankScope === "hybrid" ? cfg.bankScope : "exact";
   const bankProblem = invalidBankReason(bank, bankScope);
   if (bankProblem) {
     console.error(`[mnemosyne] ${bankProblem}; extension disabled`);
@@ -157,15 +160,42 @@ export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
   };
 }
 
-/**
- * Resolve the effective bank for a session. The base bank must already be
- * validated by loadMnemosyneConfig; project scope suffixes the cwd hash with
- * `-` separators to stay inside the bank name charset.
- */
-export function resolveBank(cfg: Pick<MnemosyneConfig, "bank" | "bankScope">, cwd: string): string {
-  if (cfg.bankScope !== "project") return cfg.bank;
+export interface BankSet {
+  /** Banks in use this session; a single element unless scope is hybrid. */
+  all: string[];
+  /** Bank used when a write does not name a target. */
+  defaultWrite: string;
+  resolve(target?: BankTarget): string;
+}
+
+function projectBank(base: string, cwd: string): string {
   const hash = createHash("sha256").update(path.resolve(cwd)).digest("hex").slice(0, PROJECT_HASH_LEN);
-  return `${cfg.bank}${PROJECT_SUFFIX}${hash}`;
+  return `${base}${PROJECT_SUFFIX}${hash}`;
+}
+
+/**
+ * Resolve the bank set for a session. The base bank must already be
+ * validated by loadMnemosyneConfig; the project bank suffixes the cwd hash
+ * with `-` separators to stay inside the bank name charset.
+ *
+ * "exact" and "project" resolve to a single bank and collapse both write
+ * targets onto it. "hybrid" keeps the base bank as a shared global bank
+ * alongside the project bank: reads fan out over both, writes default to
+ * the project bank, and resolve() routes an explicit target.
+ */
+export function resolveBanks(cfg: Pick<MnemosyneConfig, "bank" | "bankScope">, cwd: string): BankSet {
+  if (cfg.bankScope === "exact") {
+    return { all: [cfg.bank], defaultWrite: cfg.bank, resolve: () => cfg.bank };
+  }
+  const project = projectBank(cfg.bank, cwd);
+  if (cfg.bankScope === "project") {
+    return { all: [project], defaultWrite: project, resolve: () => project };
+  }
+  return {
+    all: [cfg.bank, project],
+    defaultWrite: project,
+    resolve: (target) => (target === "global" ? cfg.bank : project),
+  };
 }
 
 interface ToolPayload {
@@ -448,4 +478,42 @@ export function createMnemosyneProvider(cfg: MnemosyneConfig): MnemosyneProvider
     sleep: (bank) => client.sleep(bank),
     close: () => client.close(),
   };
+}
+
+/**
+ * Recall from every bank in parallel and merge the ranked lists. One
+ * failing bank must not sink the others, so failures log and yield nothing.
+ */
+export async function searchBanks(
+  provider: Pick<MnemosyneProvider, "search">,
+  query: string,
+  limit: number,
+  banks: string[],
+): Promise<MemoryItem[]> {
+  const groups = await Promise.all(
+    banks.map((bank) =>
+      provider.search(query, limit, bank).catch((err: unknown) => {
+        console.error(
+          `[mnemosyne] recall on bank ${bank} failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return [] as MemoryItem[];
+      }),
+    ),
+  );
+  return mergeRecallResults(groups, limit);
+}
+
+/** Merge ranked lists: score-descending, stable for ties (earlier bank
+ * first), duplicate ids dropped, capped at limit. */
+export function mergeRecallResults(groups: MemoryItem[][], limit: number): MemoryItem[] {
+  const seen = new Set<string>();
+  return groups
+    .flat()
+    .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
+    .filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    })
+    .slice(0, limit);
 }

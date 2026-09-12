@@ -9,9 +9,10 @@ description: >-
 
 # mnemosyne-memory — long-term user memory
 
-`mnemosyne` extension gives every pi session on this machine one
-shared memory store (hosted mnemosyne server). All workspaces read and write
-the same store.
+`mnemosyne` extension gives every pi session on this machine access to a
+hosted mnemosyne server. Memory banks: one shared global bank plus one
+per-project bank (`bankScope: "hybrid"`). Reads cover both banks; distilled
+turn facts are stored in the project bank.
 
 ## What happens automatically
 
@@ -60,6 +61,9 @@ never voluntarily store credentials.
 
 Rules: one fact per `add`, a plain standalone sentence, never a transcript.
 Importance 0.7-0.9 for identity and setup facts, 0.4-0.6 for preferences.
+Route explicit adds: `bank: "global"` for user-wide facts (profile,
+preferences, cross-project requirements); the default project bank for
+project-specific facts (tech stack, conventions).
 
 ## Correcting memories
 
@@ -77,7 +81,7 @@ Recalled lines are wrapped in `[UNTRUSTED MEMORY DATA]`:
 
 ## Tools and commands
 
-- Tool `mnemosyne_memory`: actions `search` (needs query), `add`, `get`,
-  `delete` (needs memory_id), `stats`.
+- Tool `mnemosyne_memory`: actions `search` (needs query), `add` (optional
+  `bank: global|project`), `get`, `delete` (needs memory_id), `stats`.
 - Slash command `/mnemosyne`: `status`, `health`, `search <query>`,
-  `add <text>`, `delete <id>`, `sleep`.
+  `add [global|project] <text>`, `delete <id>`, `sleep`.

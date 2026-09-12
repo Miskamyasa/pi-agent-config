@@ -4,7 +4,7 @@
   "memoryMode": "hybrid",
   "topK": 5,
   "bank": "default",
-  "bankScope": "exact",
+  "bankScope": "hybrid",
   "consolidateOnShutdown": true,
   "captureTurns": true,
   "distillModel": "openai/gpt-5.6-luna"
