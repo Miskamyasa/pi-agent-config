@@ -3,8 +3,9 @@
   "token": "${MEMORY_MCP_TOKEN}",
   "memoryMode": "hybrid",
   "topK": 5,
-  "bank": "default",
+  "bank": "global",
   "bankScope": "hybrid",
+  "legacyBanks": ["default", "default-project-34b2f3d3923a"],
   "consolidateOnShutdown": true,
   "captureTurns": true,
   "distillModel": "openai/gpt-5.6-luna"

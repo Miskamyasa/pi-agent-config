@@ -28,10 +28,10 @@
  * Configuration via <agentDir>/extensions/mnemosyne/config.json or environment
  * (MNEMOSYNE_URL, MEMORY_MCP_TOKEN, MNEMOSYNE_INSECURE=1). Bank scoping
  * maps to mnemosyne memory banks: "bankScope" is "exact" (one shared bank),
- * "project" (bank suffixed with `-project-<12-char cwd hash>`), or "hybrid"
- * (shared bank plus project bank: reads fan out over both, writes default
- * to the project bank, and the mnemosyne_memory add action can target
- * "global").
+ * "project" / "hybrid" (shared bank plus a per-project bank named from the
+ * cwd path, e.g. /Users/dzaitsev/.pi → project--Users-dzaitsev--pi: reads
+ * fan out over both, writes default to the project bank, and the
+ * mnemosyne_memory add action can target "global").
  */
 import {
   getMarkdownTheme,
@@ -85,7 +85,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
   // Ids of memories injected this session; later turns skip them to avoid
   // re-injecting facts the model already has in context.
   let recalledIds = new Set<string>();
-  let banks: BankSet = resolveBanks({ bank: "default", bankScope: "exact" }, "");
+  let banks: BankSet = resolveBanks({ bank: "default", bankScope: "exact", legacyBanks: [] }, "");
   let topK = 5;
   let captureTurns = false;
   let distillModel = "openai/gpt-5.6-luna";

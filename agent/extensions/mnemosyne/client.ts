@@ -41,6 +41,7 @@ export interface MnemosyneConfig {
   topK: number;
   bank: string;
   bankScope: BankScope;
+  legacyBanks: string[];
   captureTurns: boolean;
   distillModel: string;
   consolidateOnShutdown: boolean;
@@ -57,20 +58,18 @@ const CONFIG_FILENAME = "config.json";
 const DEFAULT_URL = "https://mnemosyne.paragraph.red/mcp";
 
 // mnemosyne/core/banks.py `_validate_bank_name`: alphanumeric, hyphen,
-// underscore, at most 64 chars. Project scope appends a 21-char suffix
-// ("-project-" + 12 hex), so the base bank gets a tighter length limit.
+// underscore, at most 64 chars. The bank name is also a server-side
+// directory under /data/banks/, so it cannot contain slashes or dots.
 const BANK_NAME_MAX = 64;
-const PROJECT_SUFFIX = "-project-";
-const PROJECT_HASH_LEN = 12;
+const PROJECT_PREFIX = "project--";
+const PATH_HASH_LEN = 8;
 
-export function invalidBankReason(bank: string, bankScope: BankScope): string | undefined {
+export function invalidBankReason(bank: string): string | undefined {
   if (!/^[A-Za-z0-9_-]+$/.test(bank)) {
     return `bank "${bank}" may contain only letters, digits, hyphens, and underscores`;
   }
-  const max =
-    bankScope === "exact" ? BANK_NAME_MAX : BANK_NAME_MAX - PROJECT_SUFFIX.length - PROJECT_HASH_LEN;
-  if (bank.length > max) {
-    return `bank "${bank}" exceeds ${max} chars (mnemosyne limit 64 incl. "-project-<hash>" suffix)`;
+  if (bank.length > BANK_NAME_MAX) {
+    return `bank "${bank}" exceeds ${BANK_NAME_MAX} chars (mnemosyne limit)`;
   }
   return undefined;
 }
@@ -135,7 +134,7 @@ export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
   const bank = (typeof cfg.bank === "string" && cfg.bank.trim()) || "default";
   const bankScope: BankScope =
     cfg.bankScope === "project" || cfg.bankScope === "hybrid" ? cfg.bankScope : "exact";
-  const bankProblem = invalidBankReason(bank, bankScope);
+  const bankProblem = invalidBankReason(bank);
   if (bankProblem) {
     console.error(`[mnemosyne] ${bankProblem}; extension disabled`);
     return undefined;
@@ -149,6 +148,7 @@ export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
     topK: typeof cfg.topK === "number" && cfg.topK > 0 ? Math.min(cfg.topK, 50) : 5,
     bank,
     bankScope,
+    legacyBanks: parseLegacyBanks(cfg.legacyBanks),
     captureTurns: cfg.captureTurns === true,
     distillModel:
       typeof cfg.distillModel === "string" && cfg.distillModel.trim()
@@ -168,33 +168,69 @@ export interface BankSet {
   resolve(target?: BankTarget): string;
 }
 
-function projectBank(base: string, cwd: string): string {
-  const hash = createHash("sha256").update(path.resolve(cwd)).digest("hex").slice(0, PROJECT_HASH_LEN);
-  return `${base}${PROJECT_SUFFIX}${hash}`;
+/**
+ * Derive the project bank name from the absolute working directory:
+ * `project--` + path with the leading slash stripped and every character
+ * outside [A-Za-z0-9_-] collapsed to `-` (for example
+ * /Users/dzaitsev/dev/moneyme → project--Users-dzaitsev-dev-moneyme).
+ * Encodings longer than the 64-char bank limit are truncated and suffixed
+ * with a hash of the full path so distinct projects stay distinct.
+ */
+export function projectBankName(cwd: string): string {
+  const resolved = path.resolve(cwd);
+  const encoded = resolved.replace(/^\/+/, "").replace(/[^A-Za-z0-9_-]/g, "-");
+  const budget = BANK_NAME_MAX - PROJECT_PREFIX.length - (PATH_HASH_LEN + 1);
+  if (encoded.length <= budget) return `${PROJECT_PREFIX}${encoded}`;
+  const hash = createHash("sha256").update(resolved).digest("hex").slice(0, PATH_HASH_LEN);
+  return `${PROJECT_PREFIX}${encoded.slice(0, budget)}-${hash}`;
+}
+
+/** Read-only extra banks (renamed-away names) kept in the recall set. */
+function parseLegacyBanks(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((b): b is string => typeof b === "string" && b.trim() !== "")
+    .map((b) => b.trim())
+    .filter((b) => {
+      const problem = invalidBankReason(b);
+      if (problem) console.error(`[mnemosyne] ignoring legacy bank: ${problem}`);
+      return !problem;
+    });
 }
 
 /**
  * Resolve the bank set for a session. The base bank must already be
- * validated by loadMnemosyneConfig; the project bank suffixes the cwd hash
- * with `-` separators to stay inside the bank name charset.
+ * validated by loadMnemosyneConfig. Project banks are named from the cwd
+ * path via projectBankName().
  *
- * "exact" and "project" resolve to a single bank and collapse both write
- * targets onto it. "hybrid" keeps the base bank as a shared global bank
- * alongside the project bank: reads fan out over both, writes default to
- * the project bank, and resolve() routes an explicit target.
+ * "exact" and "project" resolve to a single write bank and collapse both
+ * write targets onto it. "hybrid" keeps the base bank as a shared global
+ * bank alongside the project bank: reads fan out over both, writes default
+ * to the project bank, and resolve() routes an explicit target. legacyBanks
+ * (renamed-away names) are appended to the read set and never written, so
+ * rows there keep recalling until migrated out.
  */
-export function resolveBanks(cfg: Pick<MnemosyneConfig, "bank" | "bankScope">, cwd: string): BankSet {
-  if (cfg.bankScope === "exact") {
-    return { all: [cfg.bank], defaultWrite: cfg.bank, resolve: () => cfg.bank };
-  }
-  const project = projectBank(cfg.bank, cwd);
-  if (cfg.bankScope === "project") {
-    return { all: [project], defaultWrite: project, resolve: () => project };
-  }
+export function resolveBanks(
+  cfg: Pick<MnemosyneConfig, "bank" | "bankScope" | "legacyBanks">,
+  cwd: string,
+): BankSet {
+  const project = projectBankName(cwd);
+  const banks =
+    cfg.bankScope === "exact"
+      ? [cfg.bank]
+      : cfg.bankScope === "project"
+        ? [project]
+        : [cfg.bank, project];
+  const all = [...banks, ...cfg.legacyBanks.filter((b) => !banks.includes(b))];
   return {
-    all: [cfg.bank, project],
-    defaultWrite: project,
-    resolve: (target) => (target === "global" ? cfg.bank : project),
+    all,
+    defaultWrite: cfg.bankScope === "exact" ? cfg.bank : project,
+    resolve: (target) =>
+      cfg.bankScope === "hybrid" && target === "global"
+        ? cfg.bank
+        : cfg.bankScope === "exact"
+          ? cfg.bank
+          : project,
   };
 }
 
