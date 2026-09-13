@@ -654,12 +654,16 @@ class BtwOverlayComponent implements Component, Focusable {
 			this.callbacks.onSelectSession(1);
 			return;
 		}
+		if (matchesKey(data, Key.alt("n"))) {
+			this.callbacks.onNewSession();
+			return;
+		}
+		if (matchesKey(data, Key.alt("c"))) {
+			this.callbacks.onCopy();
+			return;
+		}
 		const inputEmpty = this.input.getText().length === 0;
 		if (inputEmpty) {
-			if (data === "n" || data === "N") {
-				this.callbacks.onNewSession();
-				return;
-			}
 			if (matchesKey(data, Key.left)) {
 				const index = this.callbacks.readViewIndex();
 				if (!this.callbacks.readActive() && index > 0) {
@@ -676,10 +680,6 @@ class BtwOverlayComponent implements Component, Focusable {
 					this.callbacks.setViewIndex(index + 1);
 					this.tui.requestRender();
 				}
-				return;
-			}
-			if (data === "c" || data === "C") {
-				this.callbacks.onCopy();
 				return;
 			}
 			if (matchesKey(data, Key.up)) {
@@ -808,7 +808,7 @@ class BtwOverlayComponent implements Component, Focusable {
 			this.frameLine(
 				dim(
 					"dim",
-					`enter ask · n new · c copy · ←→ history · alt+←→ session · alt+/ editor${scrollHint} · esc ${active ? "abort" : "close"}`,
+					`enter ask · alt+n new · alt+c copy · ←→ history · alt+←→ session · alt+/ editor${scrollHint} · esc ${active ? "abort" : "close"}`,
 				),
 				innerWidth,
 			),
