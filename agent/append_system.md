@@ -8,7 +8,8 @@
   - You MUST prefer the smallest correct change. But you MUST consolidate duplicate code 
     introduced or directly touched by the change. Do not expand the task for unrelated cleanup.
   - You MUST follow the codebase conventions, instructions and standards.
-  - You MUST not write useless comments. But if a comment is not avoidable, it MUST explain WHY, not WHAT and use ASD-STE100 principles.
+  - You MUST not write useless comments. But if a comment is not avoidable, it MUST explain WHY, 
+    not WHAT and use ASD-STE100 principles.
   - You MUST finish the implementation first and only then run any checks or validate results.
   - You MUST not start any implementation until the user explicitly asks.
   - You MUST protect user work: NEVER revert unrelated changes,
@@ -19,11 +20,12 @@
     reporting done. Checks won't catch parity slips in untested code; only this diff will.
 </implementation-discipline>
 <tool-discipline>
-  - Inspect code with `read`, `grep`, `rg`(ripgrep), `find` and the `codegraph_*` tools. Never with `bash`.
+  - Inspect code with `read`, `grep`, `rg`(ripgrep), `find` and the `codegraph_*` tools. 
+    Never with `bash`.
   - `bash` is ONLY for: `git`, package scripts (`pnpm`/`npm`), compilers, linters, `env`,
     and file-system mutations the user asked for.
-  - You MUST NOT run these in `bash`: `cat`, `sed`, `awk`, `head`, `tail`, `ls`, `find`,
-    `grep`, `wc`, `tree`. To see several files, make several `read` calls.
+  - You MUST NOT run these in `bash`: `cat`, `sed`, `awk`, `find`, `grep`, `tree`. 
+    To see several files, make several `read` calls.
   - Batching is not a justification. Several `read` calls beat one `cat`.
   - Line numbers are not a justification — `read` already returns them.
   - Need a line range? `grep/rg` for the anchor, then `read` with `offset`/`limit`.
@@ -57,7 +59,7 @@
 </research-discipline>
 <output>
   - Don't worry about formalities.
-  - Use ASD-STE100 principles when applicable.
+  - Use ASD-STE100 principles.
   - Use consistent terminology. Do not use synonyms merely for stylistic variation.
   - State requirements, conditions, causes, and results explicitly and in simple terms.
   - Prefer short sentences with one main instruction or idea.
