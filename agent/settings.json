@@ -14,8 +14,8 @@
   "hideThinkingBlock": true,
   "enabledModels": [
     "anthropic/claude-opus-5",
-    "cpa/deepseek/deepseek-flash",
     "cpa/deepseek/deepseek-v4-pro",
+    "cpa/deepseek/deepseek-v4.1-flash",
     "cpa/hetzner/qwen3.6-35b-a3b",
     "cpa/hetzner/qwen3.8-27B",
     "cpa/jalapeno/glm-5.2",
@@ -25,7 +25,7 @@
     "cpa/neuralwatt/glm-5.3",
     "cpa/neuralwatt/glm-5.3-flash",
     "cpa/neuralwatt/kimi-k3",
-    "cpa/nube/deepseek-flash",
+    "cpa/nube/deepseek-v4.1-flash",
     "cpa/nube/glm-5.2",
     "cpa/nube/glm-5.3",
     "cpa/nube/glm-5.3-flash",

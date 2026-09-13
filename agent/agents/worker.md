@@ -2,7 +2,7 @@
 name: worker
 description: Use this agent to implement a fully specified, file-scoped change. Give it the exact files it owns, the exact edits expected, and the checks to run. It does not design, and it does not touch files outside its ownership list.
 tools: read, grep, find, ls, edit, write, bash
-model: openai/gpt-5.6-terra
+model: cpa/nube/deepseek-v4.1-flash
 ---
 
 <system-reminder>
