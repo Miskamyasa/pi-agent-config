@@ -94,6 +94,9 @@ Project-local (trusted projects only) — override the matching global config:
 
 - `.pi/slye.json`.
 - `.pi/on-demand-context.json`.
+- `.pi/mnemosyne.json` — any key; `bank` overrides the project bank short
+  name (`"bank": "pi"` → bank `project--pi`). A `bank` in the global
+  config is ignored.
 
 Agent-level files:
 

@@ -11,8 +11,10 @@ description: >-
 
 `mnemosyne` extension gives every pi session on this machine access to a
 hosted mnemosyne server. Memory banks: one shared global bank plus one
-per-project bank (`bankScope: "hybrid"`). Reads cover both banks; distilled
-turn facts are stored in the project bank.
+per-project bank (`bankScope: "hybrid"`, the default). Reads cover both
+banks; distilled turn facts are stored in the project bank. A project can
+rename its bank via `.pi/mnemosyne.json` (`"bank": "pi"` → bank
+`project--pi`).
 
 ## What happens automatically
 

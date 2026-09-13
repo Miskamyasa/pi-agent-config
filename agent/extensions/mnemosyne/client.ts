@@ -4,7 +4,7 @@ import https from "node:https";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 /**
  * mnemosyne — client for a hosted Mnemosyne MCP server over
@@ -15,6 +15,11 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
  * initialize, session-id retention, and one re-init retry on session expiry.
  * "url" is optional and defaults to the hosted endpoint (MNEMOSYNE_URL or
  * DEFAULT_URL); "token" is the required credential (MEMORY_MCP_TOKEN).
+ * Config: <agentDir>/extensions/mnemosyne/config.json (global) merged with
+ * <cwd>/.pi/mnemosyne.json (project, trusted only; project wins per key).
+ * Banks: the global bank is fixed at "global"; the project bank is
+ * "project--" + the optional "bank" override (project config only) or
+ * the cwd-derived name.
  *
  * Tool contract (from mnemosyne/mcp_tools.py, all results are JSON text):
  * - mnemosyne_remember {content, importance, source, scope, bank} →
@@ -29,7 +34,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
  */
 
 export type MnemosyneMemoryMode = "hybrid" | "active" | "passive";
-export type BankScope = "exact" | "project" | "hybrid";
+export type BankScope = "global" | "project" | "hybrid";
 /** Named write target; single-bank scopes collapse both targets onto one bank. */
 export type BankTarget = "global" | "project";
 
@@ -39,7 +44,9 @@ export interface MnemosyneConfig {
   insecure: boolean;
   memoryMode: MnemosyneMemoryMode;
   topK: number;
-  bank: string;
+  /** Project-bank short-name override: the effective bank is
+   * project--<bank>. Absent → cwd-derived name (projectBankName). */
+  bank?: string;
   bankScope: BankScope;
   captureTurns: boolean;
   distillModel: string;
@@ -54,6 +61,10 @@ export interface MemoryItem {
 }
 
 const CONFIG_FILENAME = "config.json";
+const PROJECT_CONFIG_FILENAME = "mnemosyne.json";
+// One fixed global-bank name across every project keeps global memories
+// addressable without config; it is not overridable.
+const GLOBAL_BANK = "global";
 const DEFAULT_URL = "https://mnemosyne.paragraph.red/mcp";
 
 // mnemosyne/core/banks.py `_validate_bank_name`: alphanumeric, hyphen,
@@ -90,8 +101,7 @@ function expandConfig<T>(value: T): T {
   return value;
 }
 
-function readConfigFile(): Record<string, unknown> {
-  const configPath = path.join(getAgentDir(), "extensions", "mnemosyne", CONFIG_FILENAME);
+function readConfigFile(configPath: string): Record<string, unknown> {
   let raw: string;
   try {
     raw = readFileSync(configPath, "utf8");
@@ -126,18 +136,49 @@ function normalizeMemoryMode(v: unknown): MnemosyneMemoryMode {
   }
 }
 
-function normalizeBankScope(v: unknown): BankScope {
-  switch (v) {
-    case "project":
-    case "hybrid":
-      return v;
-    default:
-      return "exact";
-  }
+function validBankScope(v: unknown): BankScope | undefined {
+  return v === "global" || v === "project" || v === "hybrid" ? v : undefined;
 }
 
-export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
-  const cfg = expandConfig(readConfigFile()) as Record<string, unknown>;
+/**
+ * Load config from <agentDir>/extensions/mnemosyne/config.json merged with
+ * <cwd>/.pi/mnemosyne.json; the project file wins per key and is skipped
+ * for untrusted projects, because an untrusted checkout must not steer
+ * where memories are read from or written to. "bank" is the one
+ * project-only key: a value in the global file is ignored.
+ */
+export function loadMnemosyneConfig(cwd: string, projectTrusted: boolean): MnemosyneConfig | undefined {
+  const globalCfg = expandConfig(readConfigFile(path.join(getAgentDir(), "extensions", "mnemosyne", CONFIG_FILENAME)));
+  const projectCfg = projectTrusted
+    ? expandConfig(readConfigFile(path.join(cwd, CONFIG_DIR_NAME, PROJECT_CONFIG_FILENAME)))
+    : {};
+  // "bank" names the project bank, so only the project layer may set it:
+  // a stale global value (pre-rename it named the global bank) must not
+  // collapse every project onto one shared bank.
+  const { bank: globalBank, ...globalRest } = globalCfg;
+  if (typeof globalBank === "string" && globalBank.trim()) {
+    console.error(
+      `[mnemosyne] ignoring "bank" in the global config; it is a project-level override (.pi/mnemosyne.json)`,
+    );
+  }
+  const cfg: Record<string, unknown> = { ...globalRest, ...projectCfg };
+
+  const bank = typeof cfg.bank === "string" ? cfg.bank.trim() : "";
+  const bankProblem = bank ? invalidBankReason(projectBankFromOverride(bank)) : undefined;
+  if (bankProblem) {
+    console.error(`[mnemosyne] ${bankProblem}; extension disabled`);
+    return undefined;
+  }
+
+  const bankScope = cfg.bankScope === undefined ? "hybrid" : validBankScope(cfg.bankScope);
+  if (!bankScope) {
+    console.error(
+      `[mnemosyne] bankScope must be "global", "project", or "hybrid"; got ${
+        JSON.stringify(cfg.bankScope) ?? "unknown"
+      }; extension disabled`,
+    );
+    return undefined;
+  }
 
   const url = (typeof cfg.url === "string" && cfg.url.trim()) || process.env.MNEMOSYNE_URL || DEFAULT_URL;
   const token =
@@ -147,21 +188,13 @@ export function loadMnemosyneConfig(): MnemosyneConfig | undefined {
     "";
   if (!url || !token) return undefined;
 
-  const bank = (typeof cfg.bank === "string" && cfg.bank.trim()) || "default";
-  const bankScope = normalizeBankScope(cfg.bankScope);
-  const bankProblem = invalidBankReason(bank);
-  if (bankProblem) {
-    console.error(`[mnemosyne] ${bankProblem}; extension disabled`);
-    return undefined;
-  }
-
   return {
     url: url.replace(/\/+$/, ""),
     token,
     insecure: cfg.insecure === true || process.env.MNEMOSYNE_INSECURE === "1",
     memoryMode: normalizeMemoryMode(cfg.memoryMode),
     topK: typeof cfg.topK === "number" && cfg.topK > 0 ? Math.min(cfg.topK, 50) : 5,
-    bank,
+    ...(bank ? { bank } : {}),
     bankScope,
     captureTurns: cfg.captureTurns === true,
     distillModel:
@@ -200,30 +233,40 @@ export function projectBankName(cwd: string): string {
 }
 
 /**
- * Resolve the bank set for a session. The base bank must already be
- * validated by loadMnemosyneConfig. Project banks are named from the cwd
- * path via projectBankName().
+ * Project bank for a "bank" config override: "project--" + short name, so
+ * an override lands in the same namespace as cwd-derived banks
+ * (project--pi, not a bare "pi").
+ */
+export function projectBankFromOverride(name: string): string {
+  return `${PROJECT_PREFIX}${name}`;
+}
+
+/**
+ * Resolve the bank set for a session. "bank" and "bankScope" must already
+ * be validated by loadMnemosyneConfig. The global bank is the fixed
+ * GLOBAL_BANK; the project bank is the "bank" override
+ * (projectBankFromOverride) or the cwd-derived name (projectBankName).
  *
- * "exact" and "project" resolve to a single write bank and collapse both
- * write targets onto it. "hybrid" keeps the base bank as a shared global
- * bank alongside the project bank: reads fan out over both, writes default
- * to the project bank, and resolve() routes an explicit target.
+ * "global" and "project" resolve to a single write bank and collapse both
+ * write targets onto it. "hybrid" keeps the global bank alongside the
+ * project bank: reads fan out over both, writes default to the project
+ * bank, and resolve() routes an explicit target.
  */
 export function resolveBanks(
   cfg: Pick<MnemosyneConfig, "bank" | "bankScope">,
   cwd: string,
 ): BankSet {
-  const project = projectBankName(cwd);
+  const project = cfg.bank ? projectBankFromOverride(cfg.bank) : projectBankName(cwd);
   switch (cfg.bankScope) {
-    case "exact":
-      return { all: [cfg.bank], defaultWrite: cfg.bank, resolve: () => cfg.bank };
+    case "global":
+      return { all: [GLOBAL_BANK], defaultWrite: GLOBAL_BANK, resolve: () => GLOBAL_BANK };
     case "project":
       return { all: [project], defaultWrite: project, resolve: () => project };
     default:
       return {
-        all: [cfg.bank, project],
+        all: [GLOBAL_BANK, project],
         defaultWrite: project,
-        resolve: (target) => (target === "global" ? cfg.bank : project),
+        resolve: (target) => (target === "global" ? GLOBAL_BANK : project),
       };
   }
 }
