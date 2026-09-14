@@ -1,5 +1,6 @@
 ---
-description: Use this command to create an implementation plan
+description: Discover and plan an implementation safely
+argument-hint: "<task-or-reference>"
 ---
 
 # PLANNING
@@ -8,77 +9,99 @@ description: Use this command to create an implementation plan
 
 $ARGUMENTS
 
-## Context
+## Required Sources
 
-- You MUST read the root `AGENTS.md` file before proceeding and follow all instructions and constraints from it;
-- You MUST read all references explicitly provided in the input;
+- Read every applicable `AGENTS.md` before proceeding.
+- Read every reference provided in the input.
+- Treat higher-priority instructions and architecture boundaries as constraints, not assumptions.
 
-## Objective
+## Stage Selection
 
-Start by running `scout` sub-agents to create a structured map of the project's architecture, components, and existing mechanisms.
+Planning has two stages.
 
-Produce an execution-ready simple and scoped implementation plan:
+- If the conversation has no user-approved discovery for this input, run Stage 1 only.
+- If the user approved discovery and resolved its blockers, run Stage 2.
 
-1. A dependency-ordered list of implementation steps (actionable, scoped).
-2. A human-readable plan summary with dependency chains + rationale.
+## Stage 1 — Discovery
 
-## Strict Rules
+1. Run an architecture `scout` across the whole repository before targeted scouts.
+2. Use CodeGraph to verify entry points, callers, runtime boundaries, and package ownership.
+3. Map each requirement to its owner, existing mechanism, and integration boundary.
+4. Identify source conflicts, missing contracts, inaccessible references, and unsupported assumptions.
+5. Return at most 30 lines. Do not produce implementation steps. Wait for user approval.
 
-### Planning Boundaries
+### Discovery Output
 
-- Use `scout` sub-agents for broad research or web investigations.
-- Reuse existing architecture/mechanisms.
-- Avoid redesigning systems unless strictly necessary and justified by current codebase constraints.
-- Introduce new abstractions ONLY IF explicitly required by the scope and justified by the sources.
-- Follow KISS principles!
+```markdown
+## Problem
 
-### Source Grounding
+_One short paragraph_
 
-- Every step MUST be grounded in provided sources (`AGENTS.md` + referenced docs/code); no speculation.
-- Assumptions MUST be explicit and minimal; prefer "Missing Context" over guessing.
-- If any required context/reference is missing or inaccessible,
-  REPORT "Missing Context" in the output and HALT and do not produce implementation steps.
+## Ownership and Boundaries
 
-### Plan Quality and Failure Minimization
+- _requirement → owner → existing mechanism_
 
-- Steps must be narrowly scoped.
-- Each step must have at least: a new or modified file, function, type, or configuration value;
-  avoid dead code or no-op steps.
-- Each step must specify the exact dependency prerequisites.
-- The order of steps must follow the order from smaller utils and sub-components
-  to larger features and flows.
-- Verbs in titles and intent fields must be specific.
-- Always end with a clean-up step. It must remove code and files that are no longer used.
+## Conflicts or Missing Context
 
-## Output Format
+- _blocking items, or `None`_
+
+## Readiness
+
+`Ready for planning` or `Blocked`
+```
+
+If required context or ownership is missing, report `Blocked` and halt.
+
+## Stage 2 — Implementation Plan
+
+1. Use the approved discovery as a hard constraint.
+2. Run targeted scouts only for confirmed owners and scope.
+3. Reuse existing architecture and mechanisms. Follow KISS and YAGNI.
+4. Draft a dependency-ordered plan from small utilities and components to full flows.
+5. Run a reviewer agent with the sources, discovery, constraints, and draft plan.
+6. Resolve reviewer findings. If a blocker remains, report `Missing Context` and halt.
+
+### Plan Rules
+
+- Ground every step in the approved sources and code. Do not speculate.
+- Keep assumptions explicit and minimal. They must not override an architecture boundary.
+- Give each step an exact dependency prerequisite.
+- Name at least one changed file, function, type, or configuration value per step.
+- Do not include dead-code or no-op steps.
+- End with a clean-up step that removes specific obsolete implementation artifacts.
+
+### Plan Output
 
 ```markdown
 ## Missing Context
 
-_List missing items here and halt_
-
----
+_List blockers and halt, or omit this section_
 
 ## Problem Statement
 
-_State the problem in your own words_
+_One short paragraph_
 
 ## Assumptions
 
-_List of assumptions made_
+- _minimal assumptions_
+
+## Plan Summary
+
+_Dependency chains and rationale_
 
 ## Implementation Steps
 
 ### Step: S1
 
-Title: Short, specific title
-Intent: Implementation intent (what will be built/changed)
+Title: Specific action
+Intent: What changes and why
+Dependencies: Exact prerequisites
 
-#### Scope:
+#### Scope
 
-- _explicit bullets, short_
+- _files, functions, types, or config_
 
-#### Acceptance Criteria:
+#### Acceptance Criteria
 
-- _explicit bullets, short_
+- _short, verifiable outcomes_
 ```

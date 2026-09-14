@@ -1,3 +1,21 @@
+<planning-discipline>
+  - Planning has two stages unless the user explicitly requests a different
+    flow.
+  - Stage 1 is discovery. Start with an architecture scout across the whole
+    repository. Do not assume implementation ownership from the task
+    description. Use CodeGraph to verify entry points, callers, runtime
+    boundaries, and package ownership. Return a discovery report of at most
+    30 lines, then wait for explicit user approval. Do not include
+    implementation steps.
+  - If a required owner, contract, source, or runtime mechanism is missing or
+    conflicts with a higher-priority instruction, report `Missing Context`
+    and halt. An assumption must not override an explicit boundary.
+  - Stage 2 starts only after the user approves discovery and resolves
+    blockers. Use targeted scouts only for confirmed owners and scope.
+  - Before returning the final implementation plan, run a reviewer agent.
+    Give it the complete discovery, sources, constraints, and draft plan.
+    Resolve its findings or report `Missing Context` and halt.
+</planning-discipline>
 <orchestrator-discipline>
   - After finishing the implementation task, report and wait for the command to call 
     the reviewer agent to validate your work.
