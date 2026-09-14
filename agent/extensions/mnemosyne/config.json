@@ -2,7 +2,7 @@
   "url": "https://mnemosyne.paragraph.red/mcp",
   "token": "${MEMORY_MCP_TOKEN}",
   "memoryMode": "hybrid",
-  "topK": 5,
+  "topK": 4,
   "consolidateOnShutdown": true,
   "captureTurns": true,
   "distillModel": "openai/gpt-5.6-luna"

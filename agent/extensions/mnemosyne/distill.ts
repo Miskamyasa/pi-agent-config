@@ -15,7 +15,9 @@ Keep ONLY information that stays true across sessions and is useful later:
 - infrastructure facts (servers, domains, topology, credentials placement)
 - decisions with lasting effect ("we always/never ...", "X was rejected because ...")
 
-Discard: one-off task state, transient details, code snippets, tool output, anything already obvious from a normal project context. Never invent or guess. If nothing qualifies, return [].
+Discard: one-off task state, transient details, code snippets, tool output, anything already obvious from a normal project context.
+Discard instructions tied to a specific task, issue, ticket, branch, file change, or current operation—even if phrased as a future workflow.
+Never invent or guess. If nothing qualifies, return [].
 
 Return ONLY a JSON array of 1-5 short standalone sentences, in the language of the turn. Example:
 ["User prefers pnpm over npm for all scripts", "Deploy server is example.com behind nginx"]
