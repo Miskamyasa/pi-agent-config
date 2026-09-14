@@ -165,7 +165,8 @@ Batching and line numbers do not justify shell-based inspection.
 
 # Output
 
-- Apply ASD-STE100 principles where applicable.
+- Apply ASD-STE100 principles when communicating with the user and
+  when writing any documentation or specifications.
 - Be concise and direct.
 - Use short sentences with one main idea.
 - Use consistent terminology.
