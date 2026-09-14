@@ -5,9 +5,6 @@
  * Ask a quick side question in an overlay without interrupting the main
  * conversation.
  */
-import * as fs from "node:fs";
-import { join } from "node:path";
-
 import { contentText, type Model } from "@earendil-works/pi-ai";
 import {
 	buildSessionContext,
@@ -24,6 +21,7 @@ import {
 	type ExtensionAPI,
 	type ExtensionCommandContext,
 	type ResourceLoader,
+	type ScopedModel,
 	type Theme,
 	type ThemeColor,
 } from "@earendil-works/pi-coding-agent";
@@ -63,72 +61,24 @@ const MAX_HISTORY_EXCHANGES = 20;
 // conversation is not copied into memory without bound.
 const MAX_SIDE_SESSIONS = 10;
 
-const BTW_CONFIG_FILENAME = "config.json";
-const BTW_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
-type BtwThinkingLevel = (typeof BTW_THINKING_LEVELS)[number];
-
-interface BtwConfigFile {
-	model?: unknown;
-	thinking?: unknown;
+interface BtwModelEntry {
+	model: Model<any>;
+	/** Thinking level pinned by the enabledModels pattern, when it has one. */
+	thinkingLevel?: ScopedModel["thinkingLevel"];
 }
 
-/** Model pinned for the side agent via ~/.pi/agent/extensions/btw/config.json. */
-type BtwModelResolution =
-	| { configured: false }
-	| { configured: true; model: Model<any>; thinking?: BtwThinkingLevel };
+/** The scoped model that answers on this session, or null to follow the main session. */
+function selectedBtwModel(session: BtwSession, models: readonly BtwModelEntry[]): BtwModelEntry | null {
+	if (models.length === 0) return null;
+	// The scoped list may have fewer models now than when the index was set.
+	return models[Math.min(session.modelIndex, models.length - 1)];
+}
 
-/**
- * Read the side-agent model config from ~/.pi/agent/extensions/btw/config.json.
- * A missing file or empty `model` means "follow the main session". Anything that
- * looks like a broken config throws so it gets reported, never silently ignored.
- */
-function readBtwModelResolution(ctx: ExtensionCommandContext): BtwModelResolution {
-	const configPath = join(getAgentDir(), "extensions", "btw", BTW_CONFIG_FILENAME);
-	let raw: string;
-	try {
-		raw = fs.readFileSync(configPath, "utf8");
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") return { configured: false };
-		throw new Error(`btw: cannot read ${configPath}: ${errorMessage(error)}`);
-	}
-	let config: BtwConfigFile;
-	try {
-		config = JSON.parse(raw) as BtwConfigFile;
-	} catch (error) {
-		throw new Error(`btw: invalid JSON in ${configPath}: ${errorMessage(error)}`);
-	}
-	if (typeof config !== "object" || config === null) {
-		throw new Error(`btw: ${configPath} must contain a JSON object`);
-	}
-	if (typeof config.model !== "string" || config.model.length === 0) return { configured: false };
-	let thinking: BtwThinkingLevel | undefined;
-	if (config.thinking !== undefined) {
-		if (
-			typeof config.thinking !== "string" ||
-			!BTW_THINKING_LEVELS.includes(config.thinking as BtwThinkingLevel)
-		) {
-			throw new Error(`btw: invalid "thinking" in ${configPath}: expected one of ${BTW_THINKING_LEVELS.join(", ")}`);
-		}
-		thinking = config.thinking as BtwThinkingLevel;
-	}
-	const registry = ctx.modelRegistry;
-	const reference = config.model;
-	let model: Model<any> | undefined;
-	if (reference.includes("/")) {
-		const slash = reference.indexOf("/");
-		model = registry.find(reference.slice(0, slash), reference.slice(slash + 1));
-	} else {
-		const matches = registry.getAll().filter((candidate) => candidate.id === reference);
-		if (matches.length > 1) {
-			throw new Error(`btw: ambiguous model id "${reference}" in ${configPath}, use provider/modelId`);
-		}
-		model = matches[0];
-	}
-	if (!model) throw new Error(`btw: unknown model "${reference}" in ${configPath}`);
-	if (!registry.hasConfiguredAuth(model)) {
-		throw new Error(`btw: no API key for ${model.provider}/${model.id}`);
-	}
-	return { configured: true, model, thinking };
+/** The Tab key cycles through these: the session's scoped models that have credentials. */
+function btwModelChoices(ctx: ExtensionCommandContext): BtwModelEntry[] {
+	return ctx.scopedModels
+		.filter((scoped) => ctx.modelRegistry.hasConfiguredAuth(scoped.model))
+		.map((scoped) => ({ model: scoped.model, thinkingLevel: scoped.thinkingLevel }));
 }
 
 function errorMessage(error: unknown): string {
@@ -155,10 +105,12 @@ interface BtwSession {
 	// Points at the currently displayed exchange; after every ask it is the newest one.
 	viewIndex: number;
 	active: BtwActive | null;
+	// Index into the scoped model list; ignored while the list is empty.
+	modelIndex: number;
 }
 
 function createBtwSession(): BtwSession {
-	return { subSession: null, subscribed: false, exchanges: [], viewIndex: 0, active: null };
+	return { subSession: null, subscribed: false, exchanges: [], viewIndex: 0, active: null, modelIndex: 0 };
 }
 
 /** The single source for "which exchange is on screen": live answer, or a history entry. */
@@ -211,6 +163,8 @@ export default function btw(pi: ExtensionAPI) {
 	const sessions: BtwSession[] = [createBtwSession()];
 	let sessionIndex = 0;
 	let overlayRuntime: OverlayRuntime | null = null;
+	// Last computed scoped-model list; the overlay header reads the selected entry from it.
+	let lastModels: BtwModelEntry[] = [];
 
 	function currentSession(): BtwSession {
 		return sessions[sessionIndex];
@@ -233,7 +187,10 @@ export default function btw(pi: ExtensionAPI) {
 	}
 
 	function modelLabel(): string {
-		const model = currentSession().subSession?.model;
+		const session = currentSession();
+		const entry = selectedBtwModel(session, lastModels);
+		if (entry) return `${entry.model.provider}/${entry.model.id}`;
+		const model = session.subSession?.model;
 		return model ? `${model.provider}/${model.id}` : "";
 	}
 
@@ -267,12 +224,13 @@ export default function btw(pi: ExtensionAPI) {
 	async function ensureBtwSession(
 		session: BtwSession,
 		ctx: ExtensionCommandContext,
-		resolution: BtwModelResolution,
+		models: readonly BtwModelEntry[],
 	): Promise<AgentSession | null> {
 		if (session.subSession) return session.subSession;
-		const model = resolution.configured ? resolution.model : ctx.model;
+		const entry = selectedBtwModel(session, models);
+		const model = entry?.model ?? ctx.model;
 		if (!model) {
-			notify(ctx, "No active model for /btw (pin one via ~/.pi/agent/extensions/btw/config.json)", "error");
+			notify(ctx, "No active model for /btw (pick a model in the main session first)", "error");
 			return null;
 		}
 		const resourceLoader = createBtwResourceLoader(ctx);
@@ -289,7 +247,7 @@ export default function btw(pi: ExtensionAPI) {
 		for (const message of seed) sessionManager.appendMessage(message);
 		const { session: agentSession } = await createAgentSession({
 			model,
-			thinkingLevel: resolution.configured ? (resolution.thinking ?? pi.getThinkingLevel()) : pi.getThinkingLevel(),
+			thinkingLevel: selectedBtwModel(session, models)?.thinkingLevel ?? pi.getThinkingLevel(),
 			tools: ["read", "grep", "find", "ls"],
 			sessionManager,
 			resourceLoader,
@@ -332,15 +290,10 @@ export default function btw(pi: ExtensionAPI) {
 			setStatus("Still answering — press Esc to abort first.");
 			return;
 		}
-		// Re-read on every ask so edits to the config apply without a restart.
-		let resolution: BtwModelResolution;
-		try {
-			resolution = readBtwModelResolution(ctx);
-		} catch (error) {
-			notify(ctx, errorMessage(error), "error");
-			return;
-		}
-		const agent = await ensureBtwSession(session, ctx, resolution);
+		// Recompute the credential-filtered view of the session's scoped-model snapshot.
+		const models = btwModelChoices(ctx);
+		lastModels = models;
+		const agent = await ensureBtwSession(session, ctx, models);
 		if (!agent) return;
 
 		if (!session.subscribed) {
@@ -348,15 +301,13 @@ export default function btw(pi: ExtensionAPI) {
 			session.subscribed = true;
 		}
 
-		// A pinned model is never re-synced to the main session's; unpinned follows it.
+		// A scoped model is never re-synced to the main session's; unscoped follows it.
 		try {
-			const target = resolution.configured ? resolution.model : ctx.model;
+			const target = selectedBtwModel(session, models)?.model ?? ctx.model;
 			if (target && (agent.model?.provider !== target.provider || agent.model?.id !== target.id)) {
 				await agent.setModel(target);
 			}
-			agent.setThinkingLevel(
-				resolution.configured && resolution.thinking ? resolution.thinking : pi.getThinkingLevel(),
-			);
+			agent.setThinkingLevel(selectedBtwModel(session, models)?.thinkingLevel ?? pi.getThinkingLevel());
 		} catch {
 			// Keep whatever the sub-session already uses.
 		}
@@ -400,6 +351,30 @@ export default function btw(pi: ExtensionAPI) {
 		} catch {
 			// Abort races are fine; the prompt() call resolves with stopReason "aborted".
 		}
+	}
+
+	/** Advance to the next scoped model; it answers the following questions. */
+	function cycleModel(ctx: ExtensionCommandContext): void {
+		const session = currentSession();
+		if (session.active) {
+			setStatus("Still answering — press Esc to abort first.");
+			return;
+		}
+		// Recompute the credential-filtered view of the session's scoped-model snapshot.
+		const models = btwModelChoices(ctx);
+		lastModels = models;
+		if (models.length === 0) {
+			setStatus("No scoped models with credentials — following the main session model.");
+			refreshOverlay();
+			return;
+		}
+		// Clamp first: the snapshot may have fewer models than when the index was set.
+		session.modelIndex = (Math.min(session.modelIndex, models.length - 1) + 1) % models.length;
+		const entry = models[session.modelIndex];
+		setStatus(`Model: ${entry.model.provider}/${entry.model.id}`);
+		// The model itself is applied by the next ask, which awaits setModel; mutating the
+		// live session here would race with that awaited transition.
+		refreshOverlay();
 	}
 
 	/** Drop a session's side agent; only the oldest session is evicted this way. */
@@ -451,6 +426,8 @@ export default function btw(pi: ExtensionAPI) {
 	}
 
 	function ensureOverlay(ctx: ExtensionCommandContext): void {
+		// Refresh on open and refocus so the header shows a scoped model before the first ask.
+		lastModels = btwModelChoices(ctx);
 		if (overlayRuntime?.handle) {
 			overlayRuntime.handle.focus();
 			refreshOverlay();
@@ -500,6 +477,9 @@ export default function btw(pi: ExtensionAPI) {
 						},
 						onSelectSession: (delta) => {
 							selectSession(delta);
+						},
+						onCycleModel: () => {
+							cycleModel(ctx);
 						},
 						onUnfocus: () => {
 							overlayRuntime?.handle?.unfocus();
@@ -588,6 +568,7 @@ interface BtwOverlayCallbacks {
 	onCopy: () => void;
 	onNewSession: () => void;
 	onSelectSession: (delta: number) => void;
+	onCycleModel: () => void;
 	onUnfocus: () => void;
 }
 
@@ -644,6 +625,10 @@ class BtwOverlayComponent implements Component, Focusable {
 		}
 		if (matchesKey(data, Key.escape)) {
 			this.callbacks.onDismiss();
+			return;
+		}
+		if (matchesKey(data, Key.tab)) {
+			this.callbacks.onCycleModel();
 			return;
 		}
 		if (matchesKey(data, Key.alt("left"))) {
@@ -789,17 +774,17 @@ class BtwOverlayComponent implements Component, Focusable {
 		const statusText =
 			this.status ||
 			(active ? `streaming…${active.toolName ? ` · ${active.toolName}` : ""}` : view ? view.label : "ready");
-		const sessionText = ` · session ${this.callbacks.readSessionLabel()}`;
+		const sessionText = `session ${this.callbacks.readSessionLabel()}`;
 		const modelText = (() => {
 			const label = this.callbacks.readModelLabel();
 			return label ? ` · ${label}` : "";
 		})();
-		const viewLabel = active ? "" : ` · ${exchanges.length} in memory`;
+		const viewLabel = ` · ${exchanges.length} in memory`;
 		const scrollHint = hiddenAbove ? ` · ↑${hiddenAbove} above · ↑↓ scroll` : "";
 
 		const lines: string[] = [
 			this.borderLine(innerWidth, "top"),
-			this.frameLine(dim("accent", `btw · side question${sessionText}${modelText}${viewLabel}`), innerWidth),
+			this.frameLine(dim("accent", `${sessionText}${modelText}${viewLabel}`), innerWidth),
 			this.ruleLine(innerWidth),
 			...visible.map((line) => this.frameLine(line, innerWidth)),
 			this.ruleLine(innerWidth),
@@ -808,7 +793,7 @@ class BtwOverlayComponent implements Component, Focusable {
 			this.frameLine(
 				dim(
 					"dim",
-					`enter ask · alt+n new · alt+c copy · ←→ history · alt+←→ session · alt+/ editor${scrollHint} · esc ${active ? "abort" : "close"}`,
+					`alt+n new · alt+c copy · ←→ history · alt+←→ session · alt+/ editor · tab model${scrollHint}`,
 				),
 				innerWidth,
 			),

@@ -4,7 +4,7 @@
   "defaultModel": "gpt-oss:120b",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
-  "theme": "e-ink",
+  "theme": "e-ink-dark",
   "tuiMode": "fullscreen",
   "enableInstallTelemetry": true,
   "packages": [

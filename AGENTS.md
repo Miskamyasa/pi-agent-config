@@ -81,8 +81,9 @@ Global:
 - `extensions/on-demand-context/config.json` — `workingDirOnly`,
   `hideContents`. Currently `workingDirOnly: false`, so context files load from
   outside the launch dir.
-- `extensions/btw/config.json`, `extensions/slye/config.json`,
-  `extensions/mnemosyne/config.json` — per-extension config.
+- `extensions/slye/config.json`, `extensions/mnemosyne/config.json` — per-extension
+  config. (`btw` keeps an empty `config.json`; its models come from the global
+  `enabledModels` setting via `ctx.scopedModels`.)
 
 A dynamic state file stays under `agent/`, not in the extension folder, because
 nothing hand-edits it and its path is an extension constant:
