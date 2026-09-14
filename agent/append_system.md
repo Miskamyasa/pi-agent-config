@@ -130,6 +130,8 @@ After implementation and checks:
 2. Wait for the user to request implementation review.
 3. Call the reviewer only after that request.
 
+Do not overuse agents. They are help, not a requirement.
+
 # Tools
 
 Use `read`, `grep`, `rg`, `find`, and `codegraph_*` tools to inspect code.
