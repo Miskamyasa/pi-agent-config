@@ -13,12 +13,13 @@
  * channel (never the system prompt) and wrapped as untrusted data. Injection
  * shows at most the 3 highest-ranked memories not yet recalled this session;
  * duplicates are skipped and the block is omitted when nothing is new. The
- * seen-ids map resets on session start and after compaction. Turn
- * capture is OPT-IN via "captureTurns": true — each finished turn is first
- * redacted, then distilled client-side by a registry model ("distillModel",
- * default openai/gpt-5.6-luna) into 0-5 durable facts, and only those facts
- * are stored (source pi-fact). Turns with nothing durable save nothing; a
- * failed distillation skips the turn instead of storing raw text.
+ * seen-ids map resets on session start and after compaction. Run
+ * capture is OPT-IN via "captureTurns": true — each settled interaction is
+ * first redacted, then distilled client-side by a registry model
+ * ("distillModel", default openai/gpt-5.6-luna) into 0-5 durable facts, and
+ * only those facts are stored (source pi-fact). Interactions with nothing
+ * durable save nothing; a failed distillation skips the interaction and
+ * warns once per session instead of storing raw text.
  * mnemosyne consolidates aged rows into episodic summaries during `sleep`,
  * which runs best-effort on session_shutdown. Active side: the
  * mnemosyne_memory tool exposes search / add / get / delete / stats. There is
@@ -42,7 +43,9 @@ import {
   getMarkdownTheme,
   truncateHead,
   truncateLine,
+  truncateTail,
   type ExtensionAPI,
+  type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Box, Markdown, Text } from "@earendil-works/pi-tui";
@@ -65,6 +68,10 @@ const MAX_ENTRY_CHARS = 1_000;
 const MAX_RECALL_BYTES = 8 * 1024;
 const MAX_RECALL_LINES = 50;
 const MAX_RECALL_ENTRIES = 3;
+const MAX_USER_BYTES = 4 * 1024;
+const MAX_USER_LINES = 80;
+const MAX_ASSISTANT_BYTES = 20 * 1024;
+const MAX_ASSISTANT_LINES = 320;
 
 /** Stored rows are one-line facts; only the trust wrappers are
  * display-only clutter. The model still sees the raw content. */
@@ -98,7 +105,9 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
   let modelRegistry: Parameters<typeof distillFacts>[0] | undefined;
   let activeMemoryMode = "";
   let activeUrl = "";
-  let lastUserText = "";
+  // The user message under capture, with its bounded assistant text.
+  let capture: { userText: string; assistant: string } | undefined;
+  let distillErrorNotified = false;
   let pendingWrite = Promise.resolve();
   let sessionEpoch = 0;
 
@@ -107,6 +116,8 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     provider = undefined;
     prefetch = null;
     recalledIds = new Set<string>();
+    capture = undefined;
+    distillErrorNotified = false;
 
     const config = loadMnemosyneConfig(ctx.cwd ?? process.cwd(), ctx.isProjectTrusted());
     if (!config) {
@@ -163,23 +174,52 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     // A replaced or never-consumed search must not surface as an unhandled rejection.
     promise.catch(() => {});
     prefetch = { query, promise };
-    lastUserText = text;
+  });
+
+  // A user message opens a capture segment. A queued steer or follow-up is
+  // inserted mid-run, so this also closes the segment it ends.
+  pi.on("message_start", async (event, ctx) => {
+    if (!captureTurns || !provider || activeMemoryMode === "active") return;
+    if (event.message.role !== "user") return;
+    flushCapture(ctx);
+    const userText = truncateHead(redactMemoryText(extractText(event.message)), {
+      maxBytes: MAX_USER_BYTES,
+      maxLines: MAX_USER_LINES,
+    }).content.trim();
+    capture = userText ? { userText, assistant: "" } : undefined;
   });
 
   pi.on("turn_end", async (event) => {
-    if (!captureTurns || !provider || activeMemoryMode === "active" || !lastUserText) return;
+    if (!capture || !captureTurns || !provider || activeMemoryMode === "active") return;
     const msg = event.message;
     if (msg.role !== "assistant") return;
-    const assistantText = extractText(msg);
-    if (!assistantText.trim()) return;
+    const assistantText = extractText(msg).trim();
+    if (!assistantText) return;
+    const combined = capture.assistant ? `${capture.assistant}\n\n${assistantText}` : assistantText;
+    // Keep the tail: the final answer sits at the end of the run.
+    capture.assistant = truncateTail(redactMemoryText(combined), {
+      maxBytes: MAX_ASSISTANT_BYTES,
+      maxLines: MAX_ASSISTANT_LINES,
+    }).content;
+  });
 
-    const userText = redactMemoryText(lastUserText);
-    lastUserText = "";
+  // agent_settled is the true end: no retry, compaction retry, or queued
+  // follow-up remains, so every turn of the interaction is in the buffer.
+  pi.on("agent_settled", async (_event, ctx) => {
+    flushCapture(ctx);
+  });
+
+  /** Distil the active capture, then clear it. */
+  function flushCapture(ctx: ExtensionContext): void {
+    const active = capture;
+    capture = undefined;
+    if (!active || !active.assistant.trim()) return;
     const activeProvider = provider;
+    if (!activeProvider) return;
     const activeWriteBank = banks.defaultWrite;
     const activeRegistry = modelRegistry;
     const activeDistillModel = distillModel;
-    const transcript = `## User\n\n${userText}\n\n## Assistant\n\n${redactMemoryText(assistantText)}`;
+    const transcript = `## User\n\n${active.userText}\n\n## Assistant\n\n${active.assistant}`;
     pendingWrite = pendingWrite
       .catch(() => {})
       .then(async () => {
@@ -189,11 +229,14 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
         await activeProvider.saveFacts(facts, activeWriteBank);
       })
       .catch((err: unknown) => {
-        console.error(
-          `[mnemosyne] failed to distill turn: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[mnemosyne] failed to distill run: ${message}`);
+        if (distillErrorNotified) return;
+        distillErrorNotified = true;
+        ctx.ui.setStatus(STATUS_KEY, "💾 MEM: distill failed");
+        ctx.ui.notify(`Mnemosyne distill failed: ${message}`, "warning");
       });
-  });
+  }
 
   pi.on("before_agent_start", async () => {
     if (!prefetch) return;
@@ -278,7 +321,7 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
     await provider?.close();
     provider = undefined;
     prefetch = null;
-    lastUserText = "";
+    capture = undefined;
     pendingWrite = Promise.resolve();
   });
 
@@ -393,8 +436,8 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
       promptSnippet: "Search and manage long-term Mnemosyne memories.",
       promptGuidelines: [
         "Search mnemosyne_memory BEFORE answering when the request could depend on the user’s past work, preferences, or prior decisions.",
-        "Save durable facts proactively — user preferences, corrections, environment facts. Do not save task progress or temporary session state.",
-        "Route adds with the bank param: global for user-wide facts (profile, preferences, requirements), the default project bank for project-specific facts (tech stack, conventions).",
+        "mnemosyne_memory: save durable facts proactively — user preferences, corrections, environment facts. Do not save task progress or temporary session state.",
+        "mnemosyne_memory adds: route with the bank param. Use global only for user-wide facts: identity, personal preferences, and machine-wide infrastructure. Use the default project bank for everything tied to the current project: domain rules, API contracts, error models, architecture, stack, and conventions. If a fact names a specific project or product, it belongs to that project's bank. When in doubt, use the project bank. The effective bank follows bankScope: the single-bank global and project scopes map both targets onto that bank.",
       ],
       parameters: Type.Object({
         action: StringEnum(["search", "add", "get", "delete", "stats"], {
@@ -417,9 +460,11 @@ export default function mnemosyneExtension(pi: ExtensionAPI) {
         bank: Type.Optional(
           StringEnum(["global", "project"], {
             description:
-              "Target bank for add. global = shared across all projects (user profile, preferences, " +
-              "cross-project requirements); project = current project only (tech stack, project conventions). " +
-              "Defaults to project.",
+              "Target bank for add. global = shared across all projects (user identity, personal " +
+              "preferences, machine-wide infrastructure). project = current project only (domain rules, " +
+              "API contracts, error models, architecture, stack, conventions). Defaults to project. A fact " +
+              "that names a project or product belongs to that project's bank; when in doubt, use project. " +
+              "Under bankScope global or project, both targets map to that single bank.",
           }),
         ),
       }),

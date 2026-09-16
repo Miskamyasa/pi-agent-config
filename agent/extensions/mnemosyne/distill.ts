@@ -1,6 +1,6 @@
 /**
- * Client-side turn distillation: extract durable facts from a finished turn
- * with a cheap registry model, so the store only ever receives small facts
+ * Client-side run distillation: extract durable facts from a finished agent
+ * run with a cheap registry model, so the store only ever receives small facts
  * instead of raw transcripts. Mirrors the completion pattern used by the
  * slye extension (registry -> provider -> streamSimple).
  */

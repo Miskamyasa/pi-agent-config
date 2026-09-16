@@ -535,8 +535,8 @@ export function createMnemosyneProvider(cfg: MnemosyneConfig): MnemosyneProvider
     get: (memoryId, bank) => client.get(memoryId, bank),
     add: (text, bank, importance) =>
       client.remember({ content: text, importance, source: "pi", scope: "global", bank }),
-    saveFacts: (facts, bank) =>
-      Promise.all(
+    saveFacts: async (facts, bank) => {
+      const results = await Promise.allSettled(
         facts.map((fact) =>
           client.remember({
             content: fact,
@@ -546,7 +546,10 @@ export function createMnemosyneProvider(cfg: MnemosyneConfig): MnemosyneProvider
             bank,
           }),
         ),
-      ).then(() => undefined),
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) throw new Error(`${failed}/${facts.length} facts failed to save to ${bank}`);
+    },
     delete: (memoryId, bank) => client.forget(memoryId, bank),
     sleep: (bank) => client.sleep(bank),
     close: () => client.close(),

@@ -11,9 +11,11 @@ automatically or requested through a tool.
 - In **passive** mode it quietly looks up the three most relevant memories
   whenever the user types something, and inserts them as a special message
   before the model answers.
-- If `captureTurns` is on, after each assistant reply the whole turn is sent to
-  a small "distill" model. The model returns up to five short, durable facts,
-  which are then stored as memories.
+- If `captureTurns` is on, each interaction (the user prompt and every
+  assistant reply until the agent settles) is sent to a small "distill"
+  model. The model returns up to five short, durable facts, which are stored
+  in the active write bank (`hybrid` writes to the project bank). A failed
+  distillation is reported in the status line.
 - In **active** mode the model can call the `mnemosyne_memory` tool to search,
   add, get, delete, or view stats for memories.
 - When the session ends the extension can ask the server to consolidate old
@@ -31,14 +33,15 @@ String values support `${ENV_VAR}` expansion.
 - `token` — secret token used for authentication.
 - `memoryMode` — `"passive"`, `"active"`, or `"hybrid"` (default).
 - `topK` — how many recall results to fetch per bank.
-- `captureTurns` — `true` enables distillation after each turn.
+- `captureTurns` — `true` enables distillation after each agent run.
 - `distillModel` — model reference used to distil facts
   (default `openai/gpt-5.6-luna`).
 - `consolidateOnShutdown` — whether to run server-side consolidation on exit.
 - `bank` (project-only) — short name that becomes the project bank
   `project--<name>`.
 - `bankScope` — `"global"`, `"project"`, or `"hybrid"` (default). `hybrid` reads
-  from both banks and writes to the project bank unless overridden.
+  from both banks and writes to the project bank unless overridden. The
+  single-bank scopes collapse both write targets onto that bank.
 - `insecure` — skip TLS verification.
 - `requestTimeoutMs` — HTTP timeout in milliseconds.
 
