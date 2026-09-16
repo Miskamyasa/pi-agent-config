@@ -39,12 +39,12 @@ Start only after the user approves discovery and resolves all blockers.
   - validation steps.
 - Resolve scope uncertainty before writing.
 - Prepare the implementation plan.
-- Give the plan reviewer:
+- Give the plan to scout:
   - the complete discovery,
   - sources,
   - constraints,
   - the draft plan.
-- Resolve all reviewer findings before returning the final plan.
+- Resolve all scout findings before returning the final plan.
 - If a finding cannot be resolved, report `Missing Context` and stop.
 
 # Implementation
