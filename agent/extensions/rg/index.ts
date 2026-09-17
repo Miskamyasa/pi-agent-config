@@ -1,7 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
-import { keyHint, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { isToolCallEventType, keyHint, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
+import { findGrepCommand } from "./utils.ts";
 
 // Output caps: stop collecting at MAX_BUFFER, hand the model at most MAX_OUTPUT.
 const MAX_BUFFER = 1024 * 1024;
@@ -9,6 +10,10 @@ const MAX_OUTPUT = 50 * 1024;
 
 const RG_MISSING_HINT =
   "rg not found on PATH. Install it: brew install ripgrep (macOS) or apt install ripgrep (Linux).";
+
+// Set by the session_start probe. The bash grep block stays off when rg is
+// missing, so content search remains possible.
+let rgAvailable = false;
 
 const PARAMETERS = {
   type: "object",
@@ -171,7 +176,8 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     // Bounded: a hung rg on PATH must not stall session start or /reload.
     const probe = spawnSync("rg", ["--version"], { stdio: "ignore", timeout: 5_000 });
-    if (probe.status === 0) {
+    rgAvailable = probe.status === 0;
+    if (rgAvailable) {
       pi.setActiveTools(pi.getActiveTools().filter((name) => name !== "grep"));
       return;
     }
@@ -182,5 +188,20 @@ export default function (pi: ExtensionAPI) {
         ? RG_MISSING_HINT
         : `rg is not usable (${probe.error?.message ?? `exit code ${probe.status}`}).`;
     if (ctx.hasUI) ctx.ui.notify(`${reason} The built-in grep tool stays active.`, "warning");
+  });
+
+  // The builtin grep tool is removed above, but the model can still call the
+  // grep CLI through bash. Block it and point the model at the rg tool.
+  pi.on("tool_call", (event) => {
+    if (!rgAvailable) return undefined;
+    if (!isToolCallEventType("bash", event)) return undefined;
+
+    const grep = findGrepCommand(event.input.command);
+    if (!grep) return undefined;
+
+    return {
+      block: true,
+      reason: `Blocked: the ${grep} CLI is not allowed in bash. Use the rg tool instead.`,
+    };
   });
 }
