@@ -39,6 +39,9 @@ Conventions when editing or adding an extension:
   handlers, and message renderers through the `ExtensionAPI` argument.
 - Share the root `agent/extensions/package.json` and `tsconfig.json`. Do not
   add per-folder `package.json` files.
+- An extension may add sibling modules: `config.ts` for stable string and
+  number values, `utils.ts` for helpers. Import them with an explicit `.ts`
+  extension.
 - `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, and
   `@earendil-works/pi-tui` are peer packages supplied by the pi host at
   runtime. Never vendor a local copy — a duplicate module instance would
@@ -59,7 +62,7 @@ Conventions when editing or adding an extension:
   original to this repo.
 
 Custom extensions in this repo: `on-demand-context`, `codegraph-enhanced`,
-`rg`, `subagent`, `slye`, `btw`, `cpa`, `mnemosyne`. The
+`rg`, `subagent`, `slye`, `btw`, `cpa`, `mnemosyne`, `python-eval`. The
 `pi-tool-display` folder holds only a `config.json` (the code is the npm
 package `pi-tool-display`, declared in `settings.json` `packages`).
 
@@ -84,6 +87,8 @@ Global:
 - `extensions/slye/config.json`, `extensions/mnemosyne/config.json` — per-extension
   config. (`btw` keeps an empty `config.json`; its models come from the global
   `enabledModels` setting via `ctx.scopedModels`.)
+- `python-eval` has no config file. It resolves `python3`, then `python`, once
+  per extension load.
 
 A dynamic state file stays under `agent/`, not in the extension folder, because
 nothing hand-edits it and its path is an extension constant:
