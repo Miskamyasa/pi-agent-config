@@ -2,7 +2,7 @@
 name: scout
 description: Use this agent when you need scoped read-only research with evidence-backed findings. Do not use it for an implementation advice.
 tools: read, grep, find, ls, bash
-model: cpa/nube/deepseek-v4.1-flash
+model: openai/gpt-5.6-luna
 ---
 
 <system-reminder>

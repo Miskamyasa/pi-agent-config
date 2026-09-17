@@ -17,7 +17,6 @@
     "cpa/deepseek/deepseek-v4.1-flash",
     "cpa/hetzner/qwen3.6-35b-a3b",
     "cpa/hetzner/qwen3.8-27B",
-    "cpa/jalapeno/glm-5.3",
     "cpa/neuralwatt/kimi-k3",
     "cpa/nube/deepseek-v4.1-flash",
     "cpa/nube/glm-5.3",
