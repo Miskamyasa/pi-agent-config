@@ -1,7 +1,7 @@
 {
   "lastChangelogVersion": "0.85.1",
-  "defaultProvider": "ollama-cloud",
-  "defaultModel": "gpt-oss:120b",
+  "defaultProvider": "cpa",
+  "defaultModel": "nube/deepseek-v4.1-flash",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
   "theme": "e-ink",
