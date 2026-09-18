@@ -15,11 +15,11 @@
   "enabledModels": [
     "anthropic/claude-opus-5",
     "cpa/deepseek/deepseek-v4.1-flash",
-    "cpa/hetzner/qwen3.6-35b-a3b",
-    "cpa/hetzner/qwen3.8-27B",
-    "cpa/neuralwatt/kimi-k3",
-    "cpa/nube/deepseek-v4.1-flash",
     "cpa/nube/glm-5.3",
+    "cpa/nube/glm-5.3-flash",
+    "cpa/neuralwatt/glm-5.3",
+    "cpa/neuralwatt/glm-5.3-flash",
+    "cpa/neuralwatt/kimi-k3",
     "ollama-cloud/gpt-oss:120b",
     "openai/gpt-5.6-sol"
   ],

@@ -166,6 +166,8 @@ For a line range:
 
 Batching and line numbers do not justify shell-based inspection.
 
+The agent never commits, stages, or pushes; the user performs all git commit actions personally.
+
 # Output
 
 - Apply ASD-STE100 principles when communicating with the user and
