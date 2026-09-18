@@ -9,6 +9,8 @@ Remote: `github:Miskamyasa/pi-agent-config.git`. Branch: `main`.
 ## Layout
 
 - `agent/extensions/` — custom TypeScript extensions (the main code here).
+- `agent/extensions/shared/` — pure modules used by more than one extension.
+  No `index.ts`, so pi does not load it as an extension.
 - `agent/agents/` — subagent definitions: `scout.md`, `reviewer.md`, `worker.md`.
 - `agent/prompts/` — slash-command prompts: `plan.md`, `review.md`.
 - `agent/skills/` — skill instruction files (e.g. `mnemosyne-memory/`).
@@ -42,6 +44,15 @@ Conventions when editing or adding an extension:
 - An extension may add sibling modules: `config.ts` for stable string and
   number values, `utils.ts` for helpers. Import them with an explicit `.ts`
   extension.
+- Code used by two or more extensions goes in `agent/extensions/shared/`
+  (e.g. `shared/shell.ts`, the bash command-position detector used by `rg` and
+  `python-eval`). Keep these modules pure and free of `ExtensionAPI` use. Never
+  put an `index.ts` there: pi loads `extensions/*/index.ts` as an extension.
+- Two extensions block a CLI in the bash tool through a `tool_call` handler:
+  `rg` blocks `grep`, `egrep`, `fgrep`, and the `rg` CLI itself when `rg` is on
+  PATH, and
+  `python-eval` blocks every Python executable unconditionally. Both detect a
+  nested payload in `sh -c '...'` and `eval '...'`.
 - `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, and
   `@earendil-works/pi-tui` are peer packages supplied by the pi host at
   runtime. Never vendor a local copy — a duplicate module instance would

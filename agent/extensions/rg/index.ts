@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { isToolCallEventType, keyHint, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { findGrepCommand } from "./utils.ts";
+import { findSearchCommand } from "./utils.ts";
 
 // Output caps: stop collecting at MAX_BUFFER, hand the model at most MAX_OUTPUT.
 const MAX_BUFFER = 1024 * 1024;
@@ -190,18 +190,19 @@ export default function (pi: ExtensionAPI) {
     if (ctx.hasUI) ctx.ui.notify(`${reason} The built-in grep tool stays active.`, "warning");
   });
 
-  // The builtin grep tool is removed above, but the model can still call the
-  // grep CLI through bash. Block it and point the model at the rg tool.
+  // The builtin grep tool is removed above, but the model can still reach a
+  // search CLI through bash. Block the grep family and rg itself, so every
+  // content search goes through the rg tool and its output caps.
   pi.on("tool_call", (event) => {
     if (!rgAvailable) return undefined;
     if (!isToolCallEventType("bash", event)) return undefined;
 
-    const grep = findGrepCommand(event.input.command);
-    if (!grep) return undefined;
+    const search = findSearchCommand(event.input.command);
+    if (!search) return undefined;
 
     return {
       block: true,
-      reason: `Blocked: the ${grep} CLI is not allowed in bash. Use the rg tool instead.`,
+      reason: `Blocked: the ${search} CLI is not allowed in bash. Use the rg tool instead.`,
     };
   });
 }

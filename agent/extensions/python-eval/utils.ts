@@ -16,8 +16,10 @@ import {
 import { Container, Text, type Component } from "@earendil-works/pi-tui";
 import { spawn, spawnSync } from "node:child_process";
 import { Type, type Static } from "typebox";
+import { findBlockedCommand } from "../shared/shell.ts";
 import {
   CODE_PARAM_DESCRIPTION,
+  EXECUTABLE_SUFFIX_PATTERN,
   EXPAND_HINT,
   FRAME_COLOR,
   GLYPH_FAIL,
@@ -32,6 +34,7 @@ import {
   PARTIAL_UPDATE_MS,
   PREVIEW_LINES,
   PROBE_TIMEOUT_MS,
+  PYTHON_COMMAND_PATTERN,
   RUN_TIMEOUT_MS,
   RUNNING_TEXT,
   SOURCE_LABEL,
@@ -120,6 +123,16 @@ export function resolveInterpreter(): Interpreter | null {
     }
   }
   return null;
+}
+
+/**
+ * Return the Python executable the bash command runs, or null. python_eval
+ * replaces every Python call in bash, so a match is blocked.
+ */
+export function findPythonCommand(command: string): string | null {
+  return findBlockedCommand(command, (name) =>
+    PYTHON_COMMAND_PATTERN.test(name.replace(EXECUTABLE_SUFFIX_PATTERN, "")),
+  );
 }
 
 /** Pull the top-level module name out of a ModuleNotFoundError traceback. */

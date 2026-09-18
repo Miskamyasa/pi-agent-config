@@ -10,9 +10,10 @@
  * file only registers the tool and its lifecycle hook.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { defineTool } from "@earendil-works/pi-coding-agent";
+import { defineTool, isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import {
+  BASH_BLOCK_REASON,
   MODULE_TO_PACKAGE,
   NO_PYTHON_HINT,
   TOOL_DESCRIPTION,
@@ -24,6 +25,7 @@ import {
 import {
   buildResult,
   extractMissingModule,
+  findPythonCommand,
   installPackage,
   resolveInterpreter,
   resultText,
@@ -41,6 +43,17 @@ export default function pythonEval(pi: ExtensionAPI): void {
     if (!resolveInterpreter() && ctx.hasUI) {
       ctx.ui.notify(NO_PYTHON_HINT, "warning");
     }
+  });
+
+  // python_eval replaces every Python call, so the CLI is blocked in bash. The
+  // block is unconditional: a cached interpreter probe must not open a bypass.
+  pi.on("tool_call", (event) => {
+    if (!isToolCallEventType("bash", event)) return undefined;
+
+    const command = findPythonCommand(event.input.command);
+    if (!command) return undefined;
+
+    return { block: true, reason: BASH_BLOCK_REASON.replace("{command}", command) };
   });
 
   pi.registerTool(

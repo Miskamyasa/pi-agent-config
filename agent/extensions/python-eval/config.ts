@@ -19,6 +19,16 @@ export const INSTALL_OUTPUT_TAIL_CHARS = 2000;
 export const INTERPRETERS =
   process.platform === "win32" ? ["python", "python3", "py"] : ["python3", "python"];
 
+/**
+ * Python executable names, for the bash block. Covers a version suffix
+ * (`python3.13`) and CPython ABI flags (`python3.13t`, `python3.12d`), but not
+ * a longer word that starts with `python`, such as `pythonic`.
+ */
+export const PYTHON_COMMAND_PATTERN = /^python(?:w)?(?:\d+(?:\.\d+)?)?(?:[dtum]+)?$|^py$/;
+
+/** Executable suffixes stripped before the name test. */
+export const EXECUTABLE_SUFFIX_PATTERN = /\.(?:exe|bat|cmd|com)$/i;
+
 /** Modules whose import name differs from the PyPI distribution name. */
 export const MODULE_TO_PACKAGE: Record<string, string> = {
   PIL: "pillow",
@@ -38,6 +48,10 @@ export const MODULE_TO_PACKAGE: Record<string, string> = {
   wx: "wxpython",
 };
 
+export const BASH_BLOCK_REASON =
+  "Blocked: the {command} CLI is not allowed in bash. Use the python_eval tool instead. " +
+  "To run a script file, read it and pass its source as 'code'.";
+
 export const NO_PYTHON_HINT =
   "python_eval found no Python 3 interpreter: tried python3 and python on PATH. " +
   "Install Python 3, or put it on PATH.";
@@ -51,7 +65,7 @@ export const TOOL_DESCRIPTION =
   "per stream; a non-zero exit code is returned as normal output, not as an error.";
 export const TOOL_PROMPT_SNIPPET = "Run inline Python code (fresh interpreter per call).";
 export const TOOL_PROMPT_GUIDELINES = [
-  "Use python_eval to run inline Python — calculations, data processing, quick scripts — instead of running `python3 -c` through the bash tool.",
+  "Use python_eval for all Python work — calculations, data processing, quick scripts. The python, python3, and py CLIs are blocked in the bash tool, including `python -m ...` and script files.",
   "python_eval is stateless: every call gets a fresh interpreter, so re-import and re-define anything a later call needs.",
   "python_eval installs a missing import once and retries; a non-zero exit code arrives as normal output, so read stderr in the result.",
 ];
