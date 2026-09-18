@@ -5,8 +5,9 @@ Use two stages unless the user explicitly requests another workflow.
 ## Stage 1: Discovery
 
 - Restate the requested result and constraints.
-- Read all project `AGENTS.md` files and all user-referenced files.
-- Run an architecture scout across the whole repository.
+- Follow applicable `AGENTS.md` instructions available in context.
+- Read user-referenced files.
+- Use scout findings as the primary repository map.
 - Use CodeGraph to verify:
   - entry points,
   - callers,
@@ -30,7 +31,6 @@ Do not use an assumption to override an explicit boundary.
 
 Start only after the user approves discovery and resolves all blockers.
 
-- Use targeted scouts only for confirmed owners and approved scope.
 - Identify:
   - files to change,
   - functions to change or call,
@@ -82,11 +82,14 @@ expanding the change.
 # Research
 
 - Use CodeGraph for the indexed code knowledge graph.
-- Use a scout agent when it can find the starting point without excessive
-  context use.
+- Delegate repository exploration to scout agents.
+- Do not duplicate repository exploration in the main agent.
 - Research only information required for the confirmed scope.
-- Before writing, know every planned edit at the file and function level.
+- Before writing, know the intended files and primary functions.
+- Inspect call sites only when they affect the requested behavior.
 - Complete scope research before the first edit.
+- Stop research when ownership, boundaries, and edit locations are known.
+- Do not research speculative edge cases.
 - After writing starts, research only small correctness details within the
   confirmed scope.
 - Resolve small syntax, type-signature, or logic uncertainty through the edit
@@ -129,8 +132,6 @@ After implementation and checks:
 1. Report completion.
 2. Wait for the user to request implementation review.
 3. Call the reviewer only after that request.
-
-Do not overuse agents. They are help, not a requirement.
 
 # Tools
 
