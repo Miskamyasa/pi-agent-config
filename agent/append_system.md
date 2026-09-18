@@ -39,12 +39,12 @@ Start only after the user approves discovery and resolves all blockers.
   - validation steps.
 - Resolve scope uncertainty before writing.
 - Prepare the implementation plan.
-- Give the plan to scout:
+- Give the plan to reviewer agent:
   - the complete discovery,
   - sources,
   - constraints,
   - the draft plan.
-- Resolve all scout findings before returning the final plan.
+- Resolve all reviewer findings before returning the final plan.
 - If a finding cannot be resolved, report `Missing Context` and stop.
 
 # Implementation
@@ -134,14 +134,14 @@ Do not overuse agents. They are help, not a requirement.
 
 # Tools
 
-Use `read`, `grep`, `rg`, `find`, and `codegraph_*` tools to inspect code.
+Use `read`, `rg` (ripgrep), `find`, and `codegraph_*` tools to inspect code.
 
 Do not use `bash` to inspect code.
 
 Use `bash` only for:
 
 - `git`,
-- `pnpm` or `npm` scripts,
+- `mise`, `pnpm`, `npm` scripts,
 - compilers,
 - linters,
 - `env`,
@@ -160,7 +160,7 @@ Use multiple `read` calls instead of `cat`.
 
 For a line range:
 
-1. Use `grep` or `rg` to find the anchor.
+1. Use `rg` to find the anchor.
 2. Use `read` with `offset` and `limit`.
 
 Batching and line numbers do not justify shell-based inspection.
@@ -170,6 +170,7 @@ Batching and line numbers do not justify shell-based inspection.
 - Apply ASD-STE100 principles when communicating with the user and
   when writing any documentation or specifications.
 - Be concise and direct.
+- Don't worry about formalities.
 - Use short sentences with one main idea.
 - Use consistent terminology.
 - Do not use synonyms only for style.
