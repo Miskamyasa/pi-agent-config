@@ -1,12 +1,27 @@
 import { spawn, spawnSync } from "node:child_process";
-import path from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { isToolCallEventType, keyHint, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { findSearchCommand } from "./utils.ts";
 
-// Output caps: stop collecting at MAX_BUFFER, hand the model at most MAX_OUTPUT.
-const MAX_BUFFER = 1024 * 1024;
-const MAX_OUTPUT = 50 * 1024;
+// Output caps: hand the model at most MAX_OUTPUT bytes, MAX_LINE_LENGTH chars
+// per line, and DEFAULT_LIMIT matches. MAX_BUFFER guards a line that never
+// ends, which no newline would ever flush.
+const MAX_BUFFER = 100 * 1024;
+const MAX_OUTPUT = 20 * 1024;
+const MAX_LINE_LENGTH = 100;
+const DEFAULT_LIMIT = 100;
+// A line this long means minified or generated content. Its match is dropped,
+// so one bundle cannot spend the output budget.
+const HARD_LINE_LENGTH = 500;
+
+// Path prefix of a match line, absent when the search path is a single file.
+const MATCH_PATH = /^(.*?):\d+:/;
+
+// A match line is `path:NUM:text`, or `NUM:text` when the search path is a
+// single file. Context lines use `-NUM-` and separators are `--`, so neither
+// counts. Used in context mode only, where match and context lines mix.
+const MATCH_LINE = /^(?:.*?:)?\d+:/;
 
 const RG_MISSING_HINT =
   "rg not found on PATH. Install it: brew install ripgrep (macOS) or apt install ripgrep (Linux).";
@@ -30,6 +45,7 @@ const PARAMETERS = {
     after: { type: "number", description: "Lines after matches (-A)." },
     maxCount: { type: "number", description: "Maximum matches per file (--max-count)." },
     filesWithMatches: { type: "boolean", description: "List only file paths with matches (-l)." },
+    limit: { type: "number", description: `Maximum number of matches to return (default: ${DEFAULT_LIMIT}).` },
   },
   required: ["pattern"],
 } as const;
@@ -55,14 +71,19 @@ export default function (pi: ExtensionAPI) {
     name: "rg",
     label: "rg",
     description:
-      "Full ripgrep search: file-type filters, separate before/after context, PCRE2, per-file match caps, file lists. Respects .gitignore. Use instead of grep when you need flags the grep tool does not expose.",
+      `Full ripgrep search: file-type filters, separate before/after context, PCRE2, per-file match caps, file lists. Respects .gitignore. Output is truncated to ${DEFAULT_LIMIT} matches or ${MAX_OUTPUT / 1024}KB (whichever is hit first). Long lines keep their first ${MAX_LINE_LENGTH} chars, and a match on a line over ${HARD_LINE_LENGTH} chars is skipped. Use instead of grep when you need flags the grep tool does not expose.`,
     promptSnippet:
       "The rg tool runs ripgrep with full flag access (type filters, -A/-B context, PCRE2, --max-count, files-with-matches). Prefer it over grep when those flags are needed.",
     parameters: PARAMETERS,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const args = buildArgs(params as Record<string, unknown>);
       const cwd = ctx?.cwd ?? process.cwd();
-      const searchPath = path.resolve(cwd, String(params.path ?? "."));
+      const rawLimit = typeof params.limit === "number" ? params.limit : DEFAULT_LIMIT;
+      const limit = Math.max(1, Math.floor(rawLimit));
+      // Without context every printed line is a match, so counting is exact.
+      const hasContext = Boolean(params.context || params.before || params.after);
+      const hasAfterContext = Boolean(params.context || params.after);
+      const countsEveryLine = Boolean(params.filesWithMatches) || !hasContext;
 
       return await new Promise((resolve) => {
         let child;
@@ -76,9 +97,19 @@ export default function (pi: ExtensionAPI) {
           return;
         }
 
-        let stdout = "";
+        const decoder = new StringDecoder("utf8");
+        const lines: string[] = [];
+        let pending = "";
+        let outputBytes = 0;
+        let matchCount = 0;
         let stderr = "";
         let truncated = false;
+        let matchLimitReached = false;
+        let linesTruncated = false;
+        let stopRequested = false;
+        let skippedMatches = 0;
+        let bufferGuardHit = false;
+        const skippedFiles = new Set<string>();
         let settled = false;
 
         const onAbort = () => child.kill("SIGKILL");
@@ -91,12 +122,78 @@ export default function (pi: ExtensionAPI) {
           resolve({ content: [{ type: "text" as const, text }], details });
         };
 
-        child.stdout?.on("data", (chunk: Buffer) => {
-          if (stdout.length < MAX_BUFFER) {
-            stdout += chunk.toString("utf8");
-          } else if (!truncated) {
+        // The kill is asynchronous and the pipe keeps its buffered data, so
+        // the flag must stop collection before the next chunk arrives.
+        const stopCollecting = () => {
+          if (stopRequested) return;
+          stopRequested = true;
+          child.kill("SIGKILL");
+        };
+
+        const collectLine = (line: string) => {
+          if (stopRequested) return;
+
+          const isMatch = countsEveryLine || MATCH_LINE.test(line);
+          // rg prints trailing context after its match line, so the last
+          // admitted match keeps its context until the next group starts.
+          if (matchLimitReached && (isMatch || line === "--")) {
+            stopCollecting();
+            return;
+          }
+          if (line.length > HARD_LINE_LENGTH) {
+            if (isMatch) {
+              skippedMatches++;
+              // With -l the whole line is the path; otherwise take its prefix.
+              skippedFiles.add(
+                params.filesWithMatches
+                  ? line
+                  : (MATCH_PATH.exec(line)?.[1] ?? String(params.path ?? ".")),
+              );
+            }
+            return;
+          }
+
+          let text = line;
+          if (text.length > MAX_LINE_LENGTH) {
+            text = `${text.slice(0, MAX_LINE_LENGTH)}... [truncated]`;
+            linesTruncated = true;
+          }
+
+          const cost = Buffer.byteLength(text, "utf8") + (lines.length > 0 ? 1 : 0);
+          if (outputBytes + cost > MAX_OUTPUT) {
             truncated = true;
-            child.kill("SIGKILL");
+            stopCollecting();
+            return;
+          }
+          lines.push(text);
+          outputBytes += cost;
+
+          // Count only a match the caller receives, so the count matches the
+          // output when the byte cap rejects the next line.
+          if (isMatch) matchCount++;
+          if (matchCount >= limit) {
+            matchLimitReached = true;
+            if (!hasAfterContext) stopCollecting();
+          }
+        };
+
+        child.stdout?.on("data", (chunk: Buffer) => {
+          if (stopRequested) return;
+          pending += decoder.write(chunk);
+          let newline = pending.indexOf("\n");
+          while (newline !== -1) {
+            collectLine(pending.slice(0, newline));
+            pending = pending.slice(newline + 1);
+            if (stopRequested) return;
+            newline = pending.indexOf("\n");
+          }
+          if (Buffer.byteLength(pending, "utf8") > MAX_BUFFER) {
+            // No newline ever flushes this line, so the buffer would grow
+            // without bound. Account for the line, then stop.
+            collectLine(pending);
+            pending = "";
+            bufferGuardHit = true;
+            stopCollecting();
           }
         });
         child.stderr?.on("data", (chunk: Buffer) => {
@@ -115,19 +212,45 @@ export default function (pi: ExtensionAPI) {
             return;
           }
 
-          const matchCount = (stdout.match(/^$/gm) ?? []).length;
-          let text = stdout.slice(0, MAX_OUTPUT);
-          if (stdout.length > MAX_OUTPUT) {
-            truncated = true;
-            text = text.slice(0, text.lastIndexOf("\n", MAX_OUTPUT));
-          }
-          if (truncated) {
-            text += `\n[Truncated at ${MAX_OUTPUT / 1024}KB]`;
-          }
+          // rg output normally ends with a newline; flush a last partial line.
+          pending += decoder.end();
+          if (pending) collectLine(pending);
+
+          let text = lines.join("\n");
           if (!text.trim()) {
             text = "No matches.";
           }
-          finish(text, { matchCount, truncated });
+
+          const notices: string[] = [];
+          if (matchLimitReached) {
+            notices.push(`${limit} matches limit reached. Use limit=${limit * 2} for more, or refine pattern`);
+          }
+          if (truncated) {
+            notices.push(`${MAX_OUTPUT / 1024}KB limit reached`);
+          }
+          if (linesTruncated) {
+            notices.push(`Some lines kept only their first ${MAX_LINE_LENGTH} chars. Use the read tool to see full lines`);
+          }
+          if (bufferGuardHit) {
+            notices.push(
+              `search stopped: a line over ${MAX_BUFFER / 1024}KB (likely minified or generated). Narrow the search with glob/fileType/path`,
+            );
+          }
+          if (skippedMatches > 0) {
+            notices.push(
+              `${skippedMatches} matches skipped in ${skippedFiles.size} files (likely minified or generated). Narrow the search with glob/fileType/path, or use the read tool`,
+            );
+          }
+          if (notices.length > 0) text += `\n\n[${notices.join(". ")}]`;
+
+          finish(text, {
+            matchCount,
+            truncated,
+            matchLimitReached,
+            linesTruncated,
+            skippedMatches,
+            bufferGuardHit,
+          });
         });
       });
     },

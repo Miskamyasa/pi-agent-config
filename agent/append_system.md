@@ -139,6 +139,16 @@ Use `read`, `rg` (ripgrep), `find`, and `codegraph_*` tools to inspect code.
 
 Do not use `bash` to inspect code.
 
+You MUST NOT run these commands through `bash`:
+
+- `cat`,
+- `sed`,
+- `awk`,
+- `find`,
+- `grep`,
+- `tree`,
+- `python`.
+
 Use `bash` only for:
 
 - `git`,
@@ -147,15 +157,6 @@ Use `bash` only for:
 - linters,
 - `env`,
 - user-approved file-system changes.
-
-Do not run these commands through `bash`:
-
-- `cat`,
-- `sed`,
-- `awk`,
-- `find`,
-- `grep`,
-- `tree`.
 
 Use multiple `read` calls instead of `cat`.
 

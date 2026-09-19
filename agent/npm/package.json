@@ -2,7 +2,7 @@
   "name": "pi-extensions",
   "private": true,
   "dependencies": {
-    "pi-ollama-cloud": "0.11.0",
+    "pi-ollama-cloud": "0.12.1",
     "pi-tool-display": "0.5.0"
   }
 }
