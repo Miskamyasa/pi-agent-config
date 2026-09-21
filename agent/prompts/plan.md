@@ -25,10 +25,9 @@ Planning has two stages.
 ## Stage 1 — Discovery
 
 1. Run an architecture `scout` across the whole repository before targeted scouts.
-2. Use CodeGraph to verify entry points, callers, runtime boundaries, and package ownership.
-3. Map each requirement to its owner, existing mechanism, and integration boundary.
-4. Identify source conflicts, missing contracts, inaccessible references, and unsupported assumptions.
-5. Return at most 30 lines. Do not produce implementation steps. Wait for user approval.
+2. Map each requirement to its owner, existing mechanism, and integration boundary.
+3. Identify source conflicts, missing contracts, inaccessible references, and unsupported assumptions.
+4. Return at most 30 lines. Do not produce implementation steps. Wait for user approval.
 
 ### Discovery Output
 

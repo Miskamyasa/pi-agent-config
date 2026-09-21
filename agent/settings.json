@@ -11,17 +11,20 @@
     "npm:pi-ollama-cloud",
     "npm:pi-tool-display"
   ],
+  "defaultTools": [],
   "hideThinkingBlock": true,
   "enabledModels": [
-    "anthropic/claude-opus-5",
+    "ollama-cloud/gpt-oss:120b",
     "cpa/deepseek/deepseek-v4.1-flash",
     "cpa/nube/glm-5.3",
     "cpa/nube/glm-5.3-flash",
     "cpa/neuralwatt/glm-5.3",
     "cpa/neuralwatt/glm-5.3-flash",
     "cpa/neuralwatt/kimi-k3",
-    "ollama-cloud/gpt-oss:120b",
-    "openai/gpt-5.6-sol"
+    "cpa/phoenix/glm-5.3-flash",
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-luna",
+    "anthropic/claude-opus-5"
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,
@@ -41,7 +44,7 @@
   },
   "editorPaddingX": 1,
   "images": {
-    "autoResize": true
+    "autoResize": false
   },
   "fullscreenCopyOnSelect": true,
   "fullscreenScrollbar": "auto",

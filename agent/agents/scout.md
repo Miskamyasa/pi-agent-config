@@ -15,7 +15,6 @@ model: openai/gpt-5.6-luna
   ZERO exceptions.
 <system-reminder>
 <research-discipline>
-  - Use codegraph tools for indexed code knowledge graph.
   - Inspect and report only. Do not take any other action.
   - Map relevant files, modules, ownership boundaries, conventions,
     code paths, dependencies, interfaces, and invariants.

@@ -2,6 +2,7 @@
 /agent/sessions
 /agent/models-store.json
 /agent/pi-cpa.json
+/agent/deepseek-offpeak.json
 agent/trust.json
 agent/cache/pi-ollama-cloud/cache.json
 /pi-acp/

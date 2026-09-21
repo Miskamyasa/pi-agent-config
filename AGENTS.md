@@ -9,17 +9,14 @@ Remote: `github:Miskamyasa/pi-agent-config.git`. Branch: `main`.
 ## Layout
 
 - `agent/extensions/` — custom TypeScript extensions (the main code here).
-- `agent/extensions/shared/` — pure modules used by more than one extension.
-  No `index.ts`, so pi does not load it as an extension.
 - `agent/agents/` — subagent definitions: `scout.md`, `reviewer.md`, `worker.md`.
 - `agent/prompts/` — slash-command prompts: `plan.md`, `review.md`.
-- `agent/skills/` — skill instruction files (e.g. `mnemosyne-memory/`).
+- `agent/skills/` — skill instruction files.
 - `agent/themes/` — theme JSON files (e.g. `e-ink.json`, `e-ink-dark.json`).
 - `agent/npm/` — install root for npm pi packages (tracked `package.json`, gitignored `node_modules`).
 - `agent/settings.json` — main pi settings (provider, model, theme).
 - `agent/*.json` — agent-level settings and machine-local state; extension
   config lives in each extension folder (see "Config & state files").
-- `.codegraph/` — CodeGraph index database. Machine-local, gitignored.
 - `README.md`, `LICENSE`, `.gitignore`.
 
 ## Extensions
@@ -44,36 +41,24 @@ Conventions when editing or adding an extension:
 - An extension may add sibling modules: `config.ts` for stable string and
   number values, `utils.ts` for helpers. Import them with an explicit `.ts`
   extension.
-- Code used by two or more extensions goes in `agent/extensions/shared/`
-  (e.g. `shared/shell.ts`, the bash command-position detector used by `rg` and
-  `python-eval`). Keep these modules pure and free of `ExtensionAPI` use. Never
-  put an `index.ts` there: pi loads `extensions/*/index.ts` as an extension.
-- Two extensions block a CLI in the bash tool through a `tool_call` handler:
-  `rg` blocks `grep`, `egrep`, `fgrep`, and the `rg` CLI itself when `rg` is on
-  PATH, and
-  `python-eval` blocks every Python executable unconditionally. Both detect a
-  nested payload in `sh -c '...'` and `eval '...'`.
 - `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, and
   `@earendil-works/pi-tui` are peer packages supplied by the pi host at
   runtime. Never vendor a local copy — a duplicate module instance would
   break `instanceof` checks and event typing.
 - TypeScript is `strict`, `noEmit`. Prefer pure helpers (exported, no side
-  effects) so they stay testable and show up in CodeGraph.
-- Five extensions are patched forks. Preserve any `LOCAL PATCH` markers and
+  effects) so they stay testable.
+- Three extensions are patched forks. Preserve any `LOCAL PATCH` markers and
   upstream attribution when editing them. Only `on-demand-context` actually
   carries `LOCAL PATCH` markers in its source; the others are forks without
   them.
   - `on-demand-context` — fork of `@quartermaster-labs/pi-on-demand-context`.
-  - `codegraph-enhanced` — fork of `EstebanForge/pi-codegraph-enhanced`.
   - `slye` — fork of `wtfzambo/speak-like-you-eat`.
   - `btw` — fork of `L2ncE/pi-btw`.
-  - `mnemosyne` — fork of `TGYD-helige/pi-memory-mem0`, reworked to
-    use a hosted Mnemosyne server.
-- `subagent` is based on the pi extension examples. `cpa` and `rg` are
-  original to this repo.
+- `subagent` is based on the pi extension examples. `cpa`, `deepseek-offpeak`,
+  and `temperature` are original to this repo.
 
-Custom extensions in this repo: `on-demand-context`, `codegraph-enhanced`,
-`rg`, `subagent`, `slye`, `btw`, `cpa`, `mnemosyne`, `python-eval`. The
+Custom extensions in this repo: `on-demand-context`, `subagent`, `slye`,
+`btw`, `cpa`, `deepseek-offpeak`, `temperature`. The
 `pi-tool-display` folder holds only a `config.json` (the code is the npm
 package `pi-tool-display`, declared in `settings.json` `packages`).
 
@@ -95,25 +80,24 @@ Global:
 - `extensions/on-demand-context/config.json` — `workingDirOnly`,
   `hideContents`. Currently `workingDirOnly: false`, so context files load from
   outside the launch dir.
-- `extensions/slye/config.json`, `extensions/mnemosyne/config.json` — per-extension
+- `extensions/slye/config.json`, `extensions/btw/config.json` — per-extension
   config. (`btw` keeps an empty `config.json`; its models come from the global
   `enabledModels` setting via `ctx.scopedModels`.)
-- `python-eval` has no config file. It resolves `python3`, then `python`, once
-  per extension load.
+- `extensions/temperature/config.json` — per-model sampling temperature
+  overrides. A missing, empty, or invalid file disables the extension.
 
 A dynamic state file stays under `agent/`, not in the extension folder, because
 nothing hand-edits it and its path is an extension constant:
 
 - `pi-cpa.json` — `cpa` extension's fetched model cache. Kept separate from
   `models-store.json` because `cpa/index.ts` sets a custom `STATE_PATH`.
+- `deepseek-offpeak.json` — `deepseek-offpeak` extension's fetched
+  Chinese-holiday cache. Same `STATE_PATH` pattern as `pi-cpa.json`.
 
 Project-local (trusted projects only) — override the matching global config:
 
 - `.pi/slye.json`.
 - `.pi/on-demand-context.json`.
-- `.pi/mnemosyne.json` — any key; `bank` overrides the project bank short
-  name (`"bank": "pi"` → bank `project--pi`). A `bank` in the global
-  config is ignored.
 
 Agent-level files:
 
@@ -126,13 +110,15 @@ Machine-local (gitignored — caches, credentials, per-project state):
 - `trust.json` — per-project trust flags.
 - `models-store.json` — default model store.
 - `pi-cpa.json` — `cpa` model cache.
+- `deepseek-offpeak.json` — `deepseek-offpeak` holiday cache.
 - `sessions/` — session journals.
 
 When you add an extension, put hand-edited config in
 `<agentDir>/extensions/<name>/config.json` via `getAgentDir()`. Do not reuse
 another extension's file. Put generated, dynamic state in
 `<agentDir>/<name>.json` instead, so it cannot overwrite hand-edited config, and
-add the path to the root `.gitignore`. `pi-cpa.json` is the precedent.
+add the path to the root `.gitignore`. `pi-cpa.json` and
+`deepseek-offpeak.json` are the precedents.
 
 ## Validating changes
 
@@ -149,20 +135,6 @@ add the path to the root `.gitignore`. `pi-cpa.json` is the precedent.
    `on-demand-context` extension re-inits on `/reload` (its `session_start`
    handler fires on startup, `/new`, `/resume`, `/fork`, and `/reload`); verify
    other extensions' reload behavior from their own `session_start` hooks.
-
-## CodeGraph
-
-The `.codegraph/codegraph.db` index covers `agent/extensions/**/*.ts`. Use
-the `codegraph_*` tools for symbol, caller, callee, and impact analysis
-before editing — prefer them over speculative `read`/`grep`.
-
-- `.codegraph/` is gitignored except its own `.gitignore`. The database is
-  machine-local; never commit it.
-- After structural changes (renamed/moved symbols, new files), re-index via
-  the `codegraph-enhanced` extension's sync command before relying on the
-  graph.
-- JSON and `.md` files are not in the graph; read them directly. (Two
-  `pnpm-workspace.yaml` files are indexed, but YAML is not the norm here.)
 
 ## on-demand-context (self-reference)
 
@@ -183,9 +155,9 @@ that works in this repo.
 
 - Short, lowercase, descriptive subject line. Optional `scope:` prefix for
   extension-scoped changes (e.g. `btw: load extensions in side session for
-  provider auth`). No body unless context is genuinely needed.
-- Do not commit generated files, `.codegraph/codegraph.db`, `auth.json`,
-  `models-store.json`, `pi-cpa.json`, `trust.json`, `sessions/`, or any
+provider auth`). No body unless context is genuinely needed.
+- Do not commit generated files, `auth.json`, `models-store.json`,
+  `pi-cpa.json`, `deepseek-offpeak.json`, `trust.json`, `sessions/`, or any
   token/credential. The `.gitignore` already covers these.
 - `agent/npm/node_modules/` is install output — never edit it by hand.
 

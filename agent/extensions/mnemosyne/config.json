@@ -1,9 +1,0 @@
-{
-  "url": "https://mnemosyne.paragraph.red/mcp",
-  "token": "${MEMORY_MCP_TOKEN}",
-  "memoryMode": "hybrid",
-  "topK": 5,
-  "consolidateOnShutdown": true,
-  "captureTurns": true,
-  "distillModel": "openai/gpt-4o-mini"
-}

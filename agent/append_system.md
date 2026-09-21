@@ -8,11 +8,6 @@ Use two stages unless the user explicitly requests another workflow.
 - Follow applicable `AGENTS.md` instructions available in context.
 - Read user-referenced files.
 - Use scout findings as the primary repository map.
-- Use CodeGraph to verify:
-  - entry points,
-  - callers,
-  - runtime boundaries,
-  - package ownership.
 - Do not infer implementation ownership from the task description.
 - Keep research within the requested scope.
 - Return a discovery report of at most 30 lines.
@@ -81,7 +76,6 @@ expanding the change.
 
 # Research
 
-- Use CodeGraph for the indexed code knowledge graph.
 - Delegate repository exploration to scout agents.
 - Do not duplicate repository exploration in the main agent.
 - Research only information required for the confirmed scope.
@@ -135,7 +129,7 @@ After implementation and checks:
 
 # Tools
 
-Use `read`, `rg` (ripgrep), `find`, and `codegraph_*` tools to inspect code.
+Use `read`, `grep`, `find`, and `ls` tools to inspect code.
 
 Do not use `bash` to inspect code.
 
@@ -162,7 +156,7 @@ Use multiple `read` calls instead of `cat`.
 
 For a line range:
 
-1. Use `rg` to find the anchor.
+1. Use `grep` to find the anchor.
 2. Use `read` with `offset` and `limit`.
 
 Batching and line numbers do not justify shell-based inspection.

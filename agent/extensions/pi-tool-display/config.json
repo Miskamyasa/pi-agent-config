@@ -2,9 +2,6 @@
   "enabled": true,
   "registerToolOverrides": {
     "read": true,
-    "grep": true,
-    "find": true,
-    "ls": true,
     "bash": true,
     "edit": true,
     "write": true
