@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Use this agent when you need to make a code review of the implementation
+description: Use this agent when you need to make a review of the plan or a code review of the implementation
 tools: read, grep, find, ls, bash
 model: openai/gpt-5.6-terra
 ---
