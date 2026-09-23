@@ -8,6 +8,11 @@ import { getAgentDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
 export type AgentScope = "user" | "project" | "both";
 
+export interface AgentDiscoveryOptions {
+	/** Discard instruction bodies. Use when only names and descriptions are needed. */
+	metadataOnly?: boolean;
+}
+
 export interface AgentConfig {
 	name: string;
 	description: string;
@@ -23,7 +28,7 @@ export interface AgentDiscoveryResult {
 	projectAgentsDir: string | null;
 }
 
-function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig[] {
+function loadAgentsFromDir(dir: string, source: "user" | "project", metadataOnly = false): AgentConfig[] {
 	const agents: AgentConfig[] = [];
 
 	if (!fs.existsSync(dir)) {
@@ -49,23 +54,41 @@ function loadAgentsFromDir(dir: string, source: "user" | "project"): AgentConfig
 			continue;
 		}
 
-		const { frontmatter, body } = parseFrontmatter<Record<string, string>>(content);
-
-		if (!frontmatter.name || !frontmatter.description) {
+		let frontmatter: Record<string, unknown>;
+		let body: string;
+		try {
+			const parsed = parseFrontmatter(content);
+			frontmatter = parsed.frontmatter;
+			body = parsed.body;
+		} catch {
+			// A malformed file must not break discovery for the other agents.
 			continue;
 		}
 
-		const tools = frontmatter.tools
-			?.split(",")
-			.map((t: string) => t.trim())
-			.filter(Boolean);
+		const { name, description } = frontmatter;
+
+		if (typeof name !== "string" || !name || typeof description !== "string" || !description) {
+			continue;
+		}
+
+		const rawTools = frontmatter.tools;
+		let tools: string[] | undefined;
+		if (typeof rawTools === "string") {
+			const parsedTools = rawTools
+				.split(",")
+				.map((t) => t.trim())
+				.filter(Boolean);
+			if (parsedTools.length > 0) tools = parsedTools;
+		}
+
+		const rawModel = frontmatter.model;
 
 		agents.push({
-			name: frontmatter.name,
-			description: frontmatter.description,
-			tools: tools && tools.length > 0 ? tools : undefined,
-			model: frontmatter.model,
-			systemPrompt: body,
+			name,
+			description,
+			tools,
+			model: typeof rawModel === "string" ? rawModel : undefined,
+			systemPrompt: metadataOnly ? "" : body,
 			source,
 			filePath,
 		});
@@ -94,12 +117,18 @@ function findNearestProjectAgentsDir(cwd: string): string | null {
 	}
 }
 
-export function discoverAgents(cwd: string, scope: AgentScope): AgentDiscoveryResult {
+export function discoverAgents(
+	cwd: string,
+	scope: AgentScope,
+	options: AgentDiscoveryOptions = {},
+): AgentDiscoveryResult {
+	const metadataOnly = options.metadataOnly ?? false;
 	const userDir = path.join(getAgentDir(), "agents");
 	const projectAgentsDir = findNearestProjectAgentsDir(cwd);
 
-	const userAgents = scope === "project" ? [] : loadAgentsFromDir(userDir, "user");
-	const projectAgents = scope === "user" || !projectAgentsDir ? [] : loadAgentsFromDir(projectAgentsDir, "project");
+	const userAgents = scope === "project" ? [] : loadAgentsFromDir(userDir, "user", metadataOnly);
+	const projectAgents =
+		scope === "user" || !projectAgentsDir ? [] : loadAgentsFromDir(projectAgentsDir, "project", metadataOnly);
 
 	const agentMap = new Map<string, AgentConfig>();
 
@@ -115,12 +144,8 @@ export function discoverAgents(cwd: string, scope: AgentScope): AgentDiscoveryRe
 	return { agents: Array.from(agentMap.values()), projectAgentsDir };
 }
 
-export function formatAgentList(agents: AgentConfig[], maxItems: number): { text: string; remaining: number } {
-	if (agents.length === 0) return { text: "none", remaining: 0 };
-	const listed = agents.slice(0, maxItems);
-	const remaining = agents.length - listed.length;
-	return {
-		text: listed.map((a) => `${a.name} (${a.source}): ${a.description}`).join("; "),
-		remaining,
-	};
+/** Format agents as one line, for example `scout (user): research with evidence`. */
+export function formatAgentList(agents: AgentConfig[]): string {
+	if (agents.length === 0) return "none";
+	return agents.map((a) => `${a.name} (${a.source}): ${a.description}`).join("; ");
 }

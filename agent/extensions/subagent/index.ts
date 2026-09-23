@@ -21,6 +21,7 @@ import {
 	AgentToolResult,
 	DEFAULT_MAX_BYTES,
 	DEFAULT_MAX_LINES,
+	defineTool,
 	type ExtensionAPI,
 	formatSize,
 	getMarkdownTheme,
@@ -28,7 +29,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { type AgentConfig, type AgentScope, discoverAgents } from "./agents.js";
+import { type AgentConfig, type AgentScope, discoverAgents, formatAgentList } from "./agents.js";
 
 const FULL_BUDGET = { maxLines: DEFAULT_MAX_LINES, maxBytes: DEFAULT_MAX_BYTES };
 const MAX_PARALLEL_TASKS = 8;
@@ -436,18 +437,41 @@ const SubagentParams = Type.Object({
 	cwd: Type.Optional(Type.String({ description: "Working directory for the agent process (single mode)" })),
 });
 
+const BASE_SUBAGENT_DESCRIPTION = [
+	"Delegate tasks to specialized subagents with isolated context.",
+	"Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder).",
+	'Default agent scope is "user" (from $PI_CODING_AGENT_DIR/agents or ~/.pi/agent/agents).',
+	'To enable project-local agents in .pi/agents, set agentScope: "both" (or "project").',
+	`Returns each agent's full final report, capped at ${DEFAULT_MAX_LINES} lines / ${formatSize(DEFAULT_MAX_BYTES)}`,
+	"(split evenly across parallel tasks); overflow is spilled to a temp file whose path is included.",
+].join(" ");
+
+/** Build the tool description, including every agent the tool can reach and its frontmatter description. */
+function buildSubagentDescription(cwd: string): string {
+	try {
+		const userAgents = discoverAgents(cwd, "user", { metadataOnly: true }).agents;
+		const parts = [
+			`${BASE_SUBAGENT_DESCRIPTION} Available agents: ${formatAgentList(userAgents).replace(/\.$/, "")}.`,
+		];
+		const projectAgents = discoverAgents(cwd, "project", { metadataOnly: true }).agents;
+
+		if (projectAgents.length > 0) {
+			const projectList = formatAgentList(projectAgents).replace(/\.$/, "");
+			parts.push(`Project agents (use agentScope "project" or "both"): ${projectList}.`);
+		}
+
+		return parts.join(" ");
+	} catch {
+		// Discovery must never prevent the tool from loading.
+		return BASE_SUBAGENT_DESCRIPTION;
+	}
+}
+
 export default function (pi: ExtensionAPI) {
-	pi.registerTool({
+	const buildSubagentTool = (cwd: string) => defineTool({
 		name: "subagent",
 		label: "Subagent",
-		description: [
-			"Delegate tasks to specialized subagents with isolated context.",
-			"Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder).",
-			'Default agent scope is "user" (from $PI_CODING_AGENT_DIR/agents or ~/.pi/agent/agents).',
-			'To enable project-local agents in .pi/agents, set agentScope: "both" (or "project").',
-			`Returns each agent's full final report, capped at ${DEFAULT_MAX_LINES} lines / ${formatSize(DEFAULT_MAX_BYTES)}`,
-			"(split evenly across parallel tasks); overflow is spilled to a temp file whose path is included.",
-		].join(" "),
+		description: buildSubagentDescription(cwd),
 		parameters: SubagentParams,
 
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
@@ -1010,4 +1034,17 @@ export default function (pi: ExtensionAPI) {
 			return new Text(text?.type === "text" ? text.text : "(no output)", 0, 0);
 		},
 	});
+
+	let lastDescription: string | undefined;
+	const applySubagentTool = (cwd: string) => {
+		const definition = buildSubagentTool(cwd);
+
+		if (definition.description === lastDescription) return;
+
+		lastDescription = definition.description;
+		pi.registerTool(definition);
+	};
+
+	applySubagentTool(process.cwd());
+	pi.on("session_start", (_event, ctx) => applySubagentTool(ctx.cwd));
 }
