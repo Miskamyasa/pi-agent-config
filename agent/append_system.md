@@ -7,7 +7,7 @@ Use two stages unless the user explicitly requests another workflow.
 - Restate the requested result and constraints.
 - Follow applicable `AGENTS.md` instructions available in context.
 - Read user-referenced files.
-- Use scout findings as the primary repository map.
+- Use scout findings as a high-level repository map.
 - Do not infer implementation ownership from the task description.
 - Keep research within the requested scope.
 - Return a discovery report of at most 30 lines.
@@ -34,7 +34,8 @@ Start only after the user approves discovery and resolves all blockers.
   - validation steps.
 - Resolve scope uncertainty before writing.
 - Prepare the implementation plan.
-- Give the plan to reviewer agent:
+- Present the plan to the user first and await approval for the next step.
+- After user approval of the draft plan, give the plan to the reviewer agent:
   - the complete discovery,
   - sources,
   - constraints,
@@ -110,10 +111,11 @@ Use this sequence:
 
 # Agents
 
-Do not assume that agents share context.
+Do not assume that agents share your context. Their memory is empty on start.
 
 Give each agent:
 
+- your goal,
 - its goal,
 - confirmed scope,
 - relevant findings and references,
@@ -168,8 +170,8 @@ The agent never commits, stages, or pushes; the user performs all git commit act
 - Apply ASD-STE100 principles when communicating with the user and
   when writing any documentation or specifications.
 - Be concise and direct.
-- Don't worry about formalities.
-- Use short sentences with one main idea.
+- Don't worry about formalities. Use clear, everyday language.
+- Use short, direct sentences and everyday words with one main idea.
 - Use consistent terminology.
 - Do not use synonyms only for style.
 - State requirements, conditions, causes, actions, and results explicitly.
