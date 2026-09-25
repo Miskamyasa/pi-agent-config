@@ -55,10 +55,10 @@ Conventions when editing or adding an extension:
   - `slye` — fork of `wtfzambo/speak-like-you-eat`.
   - `btw` — fork of `L2ncE/pi-btw`.
 - `subagent` is based on the pi extension examples. `cpa`, `deepseek-offpeak`,
-  and `temperature` are original to this repo.
+  `temperature`, and `session-name` are original to this repo.
 
 Custom extensions in this repo: `on-demand-context`, `subagent`, `slye`,
-`btw`, `cpa`, `deepseek-offpeak`, `temperature`, `last-message`. The
+`btw`, `cpa`, `deepseek-offpeak`, `temperature`, `session-name`. The
 `pi-tool-display` folder holds only a `config.json` (the code is the npm
 package `pi-tool-display`, declared in `settings.json` `packages`).
 
@@ -85,6 +85,10 @@ Global:
   `enabledModels` setting via `ctx.scopedModels`.)
 - `extensions/temperature/config.json` — per-model sampling temperature
   overrides. A missing, empty, or invalid file disables the extension.
+- `extensions/session-name/config.json` — `{ "model": "provider/model" }`. The
+  named model distills the session name once per session. A missing, empty, or
+  invalid file, or an unknown or unauthenticated model, leaves the heuristic
+  name in place.
 
 A dynamic state file stays under `agent/`, not in the extension folder, because
 nothing hand-edits it and its path is an extension constant:

@@ -22,7 +22,7 @@ Download pi at [https://pi.dev/](https://pi.dev/).
 - `cpa` - aggregates several AI providers behind one `cpa` provider using [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) backend.
 - `deepseek-offpeak` - footer indicator for DeepSeek API off-peak billing hours (Chinese public holidays aware).
 - `temperature` - per-model sampling temperature overrides for outgoing model requests.
-- `last-message` - shows the last user message in a widget below the editor.
+- `session-name` - distills the session name from the first user message, and shows the last user message in the status bar.
 
 ## License
 
