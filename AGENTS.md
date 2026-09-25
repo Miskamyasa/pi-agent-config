@@ -58,7 +58,7 @@ Conventions when editing or adding an extension:
   and `temperature` are original to this repo.
 
 Custom extensions in this repo: `on-demand-context`, `subagent`, `slye`,
-`btw`, `cpa`, `deepseek-offpeak`, `temperature`. The
+`btw`, `cpa`, `deepseek-offpeak`, `temperature`, `last-message`. The
 `pi-tool-display` folder holds only a `config.json` (the code is the npm
 package `pi-tool-display`, declared in `settings.json` `packages`).
 
