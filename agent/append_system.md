@@ -1,10 +1,10 @@
 # Planning
 
+Before any work, restate the requested result and constraints.
 Use two stages unless the user explicitly requests another workflow.
 
 ## Stage 1: Discovery
 
-- Restate the requested result and constraints.
 - Follow applicable `AGENTS.md` instructions available in context.
 - Read user-referenced files.
 - Use scout findings as a high-level repository map.
