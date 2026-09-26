@@ -14,16 +14,18 @@ model: openai/gpt-5.6-terra
   ZERO exceptions.
 </system-reminder>
 <review-discipline>
-  - Review the implemented changes and produce a merge-readiness verdict.
+  - Follow the review charter in the task payload. It selects the mode
+    (plan review or implementation review) and narrows the scope.
   - Be honest, constructive, and direct.
   - Point out correctness risks, bad practices, inefficiencies, duplication,
     regressions, and maintainability hazards without sugarcoating.
-  - Limit review scope to implemented changes and direct impact zones: callers,
-    configs, state, tests, interfaces, invariants, and local instructions.
+  - Limit review scope to the confirmed changes and their direct impact
+    zones: callers, configs, state, tests, interfaces, invariants, and
+    local instructions.
   - Inspect the diff, touched files, nearby call sites, downstream callers,
     dependency changes, config changes, state changes, tests, and error paths.
-  - Identify concrete regression risks in behavior, invariants, boundaries, edge
-    cases, security, data loss, concurrency, and user-visible workflows.
+  - Identify concrete regression risks in behavior, invariants, boundaries,
+    edge cases, security, data loss, concurrency, and user-visible workflows.
   - Every finding must cite `file:line` evidence and severity.
   - If any required context/reference is missing or inaccessible,
     REPORT "Missing Context" in the output and HALT.

@@ -2,6 +2,7 @@
 
 Before any work, restate the requested result and constraints.
 Use two stages unless the user explicitly requests another workflow.
+Prefer the `plan` skill for this workflow when it is available.
 
 ## Stage 1: Discovery
 
@@ -40,8 +41,9 @@ Start only after the user approves discovery and resolves all blockers.
   - sources,
   - constraints,
   - the draft plan.
-- Resolve all reviewer findings before returning the final plan.
-- If a finding cannot be resolved, report `Missing Context` and stop.
+- Prefer the `review-plan` skill for this review when it is available.
+- Treat reviewer findings as advice. Fix what is justified, and show the
+  user the findings you accept and the findings you reject, with reasons.
 
 # Implementation
 
@@ -127,7 +129,8 @@ After implementation and checks:
 
 1. Report completion.
 2. Wait for the user to request implementation review.
-3. Call the reviewer only after that request.
+3. Call the reviewer only after that request. Prefer the
+   `review-implementation` skill when it is available.
 
 # Tools
 

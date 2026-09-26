@@ -10,8 +10,7 @@ Remote: `github:Miskamyasa/pi-agent-config.git`. Branch: `main`.
 
 - `agent/extensions/` — custom TypeScript extensions (the main code here).
 - `agent/agents/` — subagent definitions: `scout.md`, `reviewer.md`, `worker.md`.
-- `agent/prompts/` — slash-command prompts: `plan.md`, `review.md`.
-- `agent/skills/` — skill instruction files.
+- `agent/skills/` — skills: `plan`, `review-plan`, `review-implementation`.
 - `agent/themes/` — theme JSON files (e.g. `e-ink.json`, `e-ink-dark.json`).
 - `agent/npm/` — install root for npm pi packages (tracked `package.json`, gitignored `node_modules`).
 - `agent/settings.json` — main pi settings (provider, model, theme).
@@ -167,8 +166,11 @@ provider auth`). No body unless context is genuinely needed.
 
 ## Consumers of this file
 
-- `agent/prompts/plan.md` requires reading the root `AGENTS.md` before
+- `agent/skills/plan` requires reading the applicable `AGENTS.md` before
   producing an implementation plan.
+- `agent/skills/review-plan` and `agent/skills/review-implementation` require
+  the reviewer context package to include applicable `AGENTS.md` rules as
+  constraints.
 - `agent/agents/worker.md` requires following `AGENTS.md` for any file a
   worker touches.
 
