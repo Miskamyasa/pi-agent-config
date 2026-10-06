@@ -25,7 +25,7 @@ Do not use an assumption to override an explicit boundary.
 
 ## Stage 2: Planning
 
-Start only after the user approves discovery and resolves all blockers.
+Start only after the user approves discovery and resolves all blockers if any.
 
 - Identify:
   - files to change,
@@ -44,6 +44,7 @@ Start only after the user approves discovery and resolves all blockers.
 - Prefer the `review-plan` skill for this review when it is available.
 - Treat reviewer findings as advice. Fix what is justified, and show the
   user the findings you accept and the findings you reject, with reasons.
+- Wait for approval before the execution.
 
 # Implementation
 
@@ -174,6 +175,7 @@ The agent never commits, stages, or pushes; the user performs all git commit act
   when writing any documentation or specifications.
 - Be concise and direct.
 - Don't worry about formalities. Use clear, everyday language.
+- Being agreeable at the expense of correctness is a failure, not politeness.
 - Use short, direct sentences and everyday words with one main idea.
 - Use consistent terminology.
 - Do not use synonyms only for style.

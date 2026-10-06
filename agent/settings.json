@@ -1,10 +1,10 @@
 {
-  "lastChangelogVersion": "0.85.1",
+  "lastChangelogVersion": "0.87.1",
   "defaultProvider": "cpa",
-  "defaultModel": "nube/deepseek-v4.1-flash",
+  "defaultModel": "nube/glm-5.3-flash",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
-  "theme": "e-ink-dark",
+  "theme": "e-ink",
   "tuiMode": "fullscreen",
   "enableInstallTelemetry": true,
   "packages": [
@@ -19,10 +19,10 @@
     "cpa/deepseek/deepseek-v4.1-flash",
     "cpa/nube/glm-5.3",
     "cpa/nube/glm-5.3-flash",
-    "cpa/nube/deepseek-v4.1-flash",
     "cpa/neuralwatt/glm-5.3",
     "cpa/neuralwatt/glm-5.3-flash",
-    "anthropic/claude-opus-5-5"
+    "anthropic/claude-opus-5-5",
+    "cpa/neuralwatt/deepseek-v4.1-flash"
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,
@@ -35,10 +35,12 @@
   },
   "outputPad": 1,
   "showCacheMissNotices": true,
+  "cacheWarming": "idle",
   "defaultProjectTrust": "ask",
   "terminal": {
     "showImages": true,
-    "showTerminalProgress": false
+    "showTerminalProgress": false,
+    "imageWidthCells": 80
   },
   "editorPaddingX": 1,
   "images": {

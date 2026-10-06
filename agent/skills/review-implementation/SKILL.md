@@ -85,9 +85,13 @@ Review an EXECUTED IMPLEMENTATION (implementation-review mode).
 ```
 
 - State the findings you reject, with reasons.
-- When the user accepts the result, propose a commit message:
-
-- Title: no more than 72 characters, lowercase, optional `scope:`
-  prefix.
-- Body: a bullet list of the changes made after all steps and review.
-  Each line no more than 72 characters.
+- When the user accepts the result, propose a commit message using
+  the following rules:  
+  A title, no more than 72 characters.  
+  A body, with a bullet list of changes made after all steps and review.
+  - Each bullet must be no more than 72 characters.
+  - Do not include headings.
+  - No more than 4-5 bullets.
+  - Do not include verifications and tests you made.
+  - Do not wrap with any symbols.
+  - No empty lines between the title and body.

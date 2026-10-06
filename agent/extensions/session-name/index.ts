@@ -78,7 +78,7 @@ export default function sessionName(pi: ExtensionAPI): void {
     extensionCtx.ui.setStatus(
       STATUS_KEY, lastMessage === ""
         ? undefined :
-        "-> " + lastMessage
+        "🤖 " + lastMessage
     );
   }
 
