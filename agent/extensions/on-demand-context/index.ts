@@ -12,12 +12,12 @@
  *
  * Config: <agentDir>/extensions/on-demand-context/config.json (global),
  * <cwd>/.pi/on-demand-context.json (project, trusted only; project wins).
- * Keys: workingDirOnly (default true), hideContents (default false).
- * Runtime toggles: /odc-working-dir-only on|off, /odc-hide-contents on|off.
+ * Keys: workingDirOnly (default true).
+ * Runtime toggle: /odc-working-dir-only on|off.
  */
 import type { ExtensionAPI, BuildSystemPromptOptions } from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { Text, type AutocompleteItem } from "@earendil-works/pi-tui";
+import { Text, type AutocompleteItem, type Component, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { readFile } from "node:fs/promises";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname, basename, isAbsolute, resolve } from "node:path";
@@ -60,8 +60,6 @@ interface State {
 interface Config {
   /** Only load context files under pi's launch dir. Default: true. */
   workingDirOnly: boolean;
-  /** TUI never shows injected contents, even expanded. Default: false. */
-  hideContents: boolean;
 }
 
 // msys/git-bash emits `/c/Users/...`; node fs on win32 needs `C:\...`. No-op on Unix.
@@ -119,7 +117,6 @@ export function mergeConfig(
   const m = { ...global, ...project };
   return {
     workingDirOnly: boolOr(m.workingDirOnly, true),
-    hideContents: boolOr(m.hideContents, false),
   };
 }
 
@@ -131,7 +128,7 @@ function boolOr(v: unknown, dflt: boolean): boolean {
 // user-initiated, so writing global config from them is safe even for
 // untrusted projects; per-project files stay file-edited.
 function persistGlobalConfig(
-  key: "workingDirOnly" | "hideContents",
+  key: "workingDirOnly",
   value: boolean,
 ): string | null {
   const p = join(getAgentDir(), "extensions", "on-demand-context", GLOBAL_CONFIG_FILE);
@@ -243,7 +240,7 @@ export async function discoverContextFiles(
 
 let state: State | null = null;
 // Pre-session default before the first config load: out-of-tree context stays out.
-let config: Config = { workingDirOnly: true, hideContents: false };
+let config: Config = { workingDirOnly: true };
 
 function initState(): State {
   return {
@@ -298,23 +295,69 @@ export default function onDemandContext(pi: ExtensionAPI) {
   // /reload). Global config applies immediately.
   config = loadConfig(process.cwd(), false);
 
-  // Compact "loaded <paths>" line in the TUI; the LLM still receives the
-  // full content. hideContents keeps the line compact even when expanded.
-  pi.registerMessageRenderer<ContextDetails>("on-demand-context", (message, options, theme) => {
-    if (options.expanded && !config.hideContents) {
-      const text =
-        typeof message.content === "string"
-          ? message.content
-          : message.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
-      return new Text(theme.fg("muted", text), options.outputPad, 0);
+  // Collapsed: one compact "loaded <paths>" line. Expanded (Ctrl+O or click in
+  // fullscreen mode): the full text the model received. Clicks toggle this
+  // component's own state because the parent CustomMessageComponent exposes no
+  // way to flip its expansion; XOR with options.expanded keeps both paths sane.
+  class ExpandableText implements Component {
+    private collapsed: string;
+    private expandedText: string;
+    private outputPad: number;
+    private clicked = false;
+    private optionsExpanded = false;
+    private cached?: string[];
+
+    constructor(collapsed: string, expandedText: string, outputPad: number) {
+      this.collapsed = collapsed;
+      this.expandedText = expandedText;
+      this.outputPad = outputPad;
     }
+
+    private isExpanded(): boolean {
+      return this.optionsExpanded !== this.clicked;
+    }
+
+    render(width: number): string[] {
+      if (!this.cached) {
+        const text = this.isExpanded() ? this.expandedText : this.collapsed;
+        this.cached = new Text(text, this.outputPad, 0).render(width);
+      }
+      return this.cached;
+    }
+
+    setOptionsExpanded(v: boolean): void {
+      if (this.optionsExpanded !== v) {
+        this.optionsExpanded = v;
+        this.cached = undefined;
+      }
+    }
+
+    handleMouse(event: TuiMouseEvent) {
+      if (event.type !== "click" || event.button !== "left") return undefined;
+      this.clicked = !this.clicked;
+      this.cached = undefined;
+      return { handled: true };
+    }
+
+    invalidate(): void {
+      this.cached = undefined;
+    }
+  }
+
+  pi.registerMessageRenderer<ContextDetails>("on-demand-context", (message, options, theme) => {
     const files = message.details?.files;
     const paths = files && files.length > 0 ? files.join(", ") : "context files";
-    return new Text(
-      theme.fg("customMessageLabel", "loaded ") + theme.fg("muted", paths),
-      options.outputPad,
-      0,
-    );
+    const collapsed =
+      theme.fg("customMessageLabel", "loaded ") +
+      theme.fg("muted", paths) +
+      theme.fg("muted", " (click to expand)");
+    const expandedText =
+      typeof message.content === "string"
+        ? message.content
+        : message.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
+    const component = new ExpandableText(collapsed, expandedText, options.outputPad);
+    component.setOptionsExpanded(options.expanded);
+    return component;
   });
 
   pi.on("tool_result", async (event) => {
@@ -394,9 +437,7 @@ export default function onDemandContext(pi: ExtensionAPI) {
   pi.registerCommand("list-context", {
     description: "List all loaded context files and their source directories.",
     handler: async (_args, ctx) => {
-      const cfg =
-        `workingDirOnly ${config.workingDirOnly ? "on" : "off"}, ` +
-        `hideContents ${config.hideContents ? "on" : "off"}`;
+      const cfg = `workingDirOnly ${config.workingDirOnly ? "on" : "off"}`;
       if (!state || state.dirContexts.size === 0) {
         ctx.ui.notify(`No context files loaded yet. (config: ${cfg})`, "info");
         return;
@@ -421,7 +462,7 @@ export default function onDemandContext(pi: ExtensionAPI) {
   // Runtime toggles: apply immediately and persist to the global config.
   const toggleCommand = (
     name: string,
-    key: "workingDirOnly" | "hideContents",
+    key: "workingDirOnly",
   ) => {
     pi.registerCommand(`odc-${name}`, {
       description: `${key} (on|off) — sets it now and saves to the global config`,
@@ -450,7 +491,6 @@ export default function onDemandContext(pi: ExtensionAPI) {
     });
   };
   toggleCommand("working-dir-only", "workingDirOnly");
-  toggleCommand("hide-contents", "hideContents");
 
   // Fires on startup, /new, /resume, /fork, AND /reload — config edits apply
   // on the next reload.
