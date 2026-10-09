@@ -78,10 +78,7 @@ export default function sessionName(pi: ExtensionAPI): void {
     const {theme} = extensionCtx.ui
     extensionCtx.ui.setStatus(
       STATUS_KEY,
-      theme.fg("dim", lastMessage === ""
-        ? "" :
-        "🤖 " + lastMessage
-      )
+      theme.fg("dim", lastMessage === "" ? "" : "↪ " + lastMessage)
     );
   }
 
