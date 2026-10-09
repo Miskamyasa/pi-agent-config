@@ -247,6 +247,26 @@ function writePromptToTempFile(agentName: string, prompt: string): { dir: string
 	return writeTempFile("pi-subagent-", `prompt-${sanitizeFileName(agentName)}.md`, prompt);
 }
 
+/** A result is failed when it exited non-zero or stopped with an error. */
+function isFailedResult(result: { exitCode: number; stopReason?: string }): boolean {
+	return result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
+}
+
+/** Build a failed result so one thrown error cannot discard the other agents' output. */
+function failedResult(agentName: string, task: string, message: string, step?: number): SingleResult {
+	return {
+		agent: agentName,
+		agentSource: "unknown",
+		task,
+		exitCode: 1,
+		messages: [],
+		stderr: message,
+		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
+		errorMessage: message,
+		step,
+	};
+}
+
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
 async function runSingleAgent(
@@ -306,10 +326,17 @@ async function runSingleAgent(
 
 	try {
 		if (agent.systemPrompt.trim()) {
-			const tmp = writePromptToTempFile(agent.name, agent.systemPrompt);
-			tmpPromptDir = tmp.dir;
-			tmpPromptPath = tmp.filePath;
-			args.push("--append-system-prompt", tmpPromptPath);
+			try {
+				const tmp = writePromptToTempFile(agent.name, agent.systemPrompt);
+				tmpPromptDir = tmp.dir;
+				tmpPromptPath = tmp.filePath;
+				args.push("--append-system-prompt", tmpPromptPath);
+			} catch (error) {
+				currentResult.exitCode = 1;
+				currentResult.errorMessage =
+					`Failed to write system prompt to temp file: ${error instanceof Error ? error.message : String(error)}`;
+				return currentResult;
+			}
 		}
 
 		args.push(`Task: ${task}`);
@@ -390,7 +417,13 @@ async function runSingleAgent(
 		});
 
 		currentResult.exitCode = exitCode;
-		if (wasAborted) throw new Error("Subagent was aborted");
+		if (wasAborted) {
+			// Keep a failure exit code so parallel/chain checks that only look at
+			// exitCode do not report an aborted task as completed.
+			currentResult.exitCode = 1;
+			currentResult.stopReason = "aborted";
+			currentResult.errorMessage = "Subagent was aborted";
+		}
 		return currentResult;
 	} finally {
 		if (tmpPromptPath)
@@ -555,17 +588,27 @@ export default function (pi: ExtensionAPI) {
 							}
 						: undefined;
 
-					const result = await runSingleAgent(
-						ctx.cwd,
-						agents,
-						step.agent,
-						taskWithContext,
-						step.cwd,
-						i + 1,
-						signal,
-						chainUpdate,
-						makeDetails("chain"),
-					);
+					let result: SingleResult;
+					try {
+						result = await runSingleAgent(
+							ctx.cwd,
+							agents,
+							step.agent,
+							taskWithContext,
+							step.cwd,
+							i + 1,
+							signal,
+							chainUpdate,
+							makeDetails("chain"),
+						);
+					} catch (error) {
+						result = failedResult(
+							step.agent,
+							taskWithContext,
+							error instanceof Error ? error.message : String(error),
+							i + 1,
+						);
+					}
 					results.push(result);
 
 					const isError =
@@ -635,23 +678,29 @@ export default function (pi: ExtensionAPI) {
 				};
 
 				const results = await mapWithConcurrencyLimit(params.tasks, MAX_CONCURRENCY, async (t, index) => {
-					const result = await runSingleAgent(
-						ctx.cwd,
-						agents,
-						t.agent,
-						t.task,
-						t.cwd,
-						undefined,
-						signal,
-						// Per-task update callback
-						(partial) => {
-							if (partial.details?.results[0]) {
-								allResults[index] = partial.details.results[0];
-								emitParallelUpdate();
-							}
-						},
-						makeDetails("parallel"),
-					);
+					let result: SingleResult;
+					try {
+						result = await runSingleAgent(
+							ctx.cwd,
+							agents,
+							t.agent,
+							t.task,
+							t.cwd,
+							undefined,
+							signal,
+							// Per-task update callback
+							(partial) => {
+								if (partial.details?.results[0]) {
+									allResults[index] = partial.details.results[0];
+									emitParallelUpdate();
+								}
+							},
+							makeDetails("parallel"),
+						);
+					} catch (error) {
+						// Keep the failure as a result so the other tasks still report.
+						result = failedResult(t.agent, t.task, error instanceof Error ? error.message : String(error));
+					}
 					allResults[index] = result;
 					emitParallelUpdate();
 					return result;
@@ -932,11 +981,20 @@ export default function (pi: ExtensionAPI) {
 					const rIcon = r.exitCode === 0 ? theme.fg("success", "✓") : theme.fg("error", "✗");
 					const displayItems = getDisplayItems(r.messages);
 					text += `\n\n${theme.fg("muted", `─── Step ${r.step}: `)}${theme.fg("accent", r.agent)} ${rIcon}`;
-					if (displayItems.length === 0) text += `\n${theme.fg("muted", "(no output)")}`;
-					else text += `\n${renderDisplayItems(displayItems, 5)}`;
+					if (displayItems.length === 0) {
+						text += `\n${theme.fg("muted", "(no output)")}`;
+					} else {
+						text += `\n${renderDisplayItems(displayItems, 5)}`;
+					}
+					const diagnostic = r.errorMessage || r.stderr.trim();
+					if (diagnostic && isFailedResult(r)) {
+						text += `\n${theme.fg("error", diagnostic)}`;
+					}
 				}
 				const usageStr = formatUsageStats(aggregateUsage(details.results));
-				if (usageStr) text += `\n\n${theme.fg("dim", `Total: ${usageStr}`)}`;
+				if (usageStr) {
+					text += `\n\n${theme.fg("dim", `Total: ${usageStr}`)}`;
+				}
 				text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
 				return new Text(text, 0, 0);
 			}
@@ -1018,15 +1076,25 @@ export default function (pi: ExtensionAPI) {
 								: theme.fg("error", "✗");
 					const displayItems = getDisplayItems(r.messages);
 					text += `\n\n${theme.fg("muted", "─── ")}${theme.fg("accent", r.agent)} ${rIcon}`;
-					if (displayItems.length === 0)
+					if (displayItems.length === 0) {
 						text += `\n${theme.fg("muted", r.exitCode === -1 ? "(running...)" : "(no output)")}`;
-					else text += `\n${renderDisplayItems(displayItems, 5)}`;
+					} else {
+						text += `\n${renderDisplayItems(displayItems, 5)}`;
+					}
+					const diagnostic = r.errorMessage || r.stderr.trim();
+					if (diagnostic && r.exitCode !== -1 && isFailedResult(r)) {
+						text += `\n${theme.fg("error", diagnostic)}`;
+					}
 				}
 				if (!isRunning) {
 					const usageStr = formatUsageStats(aggregateUsage(details.results));
-					if (usageStr) text += `\n\n${theme.fg("dim", `Total: ${usageStr}`)}`;
+					if (usageStr) {
+						text += `\n\n${theme.fg("dim", `Total: ${usageStr}`)}`;
+					}
 				}
-				if (!expanded) text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
+				if (!expanded) {
+					text += `\n${theme.fg("muted", "(Ctrl+O to expand)")}`;
+				}
 				return new Text(text, 0, 0);
 			}
 
