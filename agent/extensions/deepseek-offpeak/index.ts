@@ -163,11 +163,10 @@ export function parseCache(data: unknown): Map<number, string[]> {
 export function renderStatus(state: PeakState, label: string, theme: { fg: (color: string, text: string) => string }): string {
   switch (state) {
     case "offpeak":
-      return theme.fg("success", `${label} 🚗 off-peak`);
+      return theme.fg("success", `${label} \udb86\udcd8 `);
     case "peak":
-      return theme.fg("dim", `${label} 🚫 peak`);
     case "unknown":
-      return theme.fg("dim", `${label} 🚫 peak?`);
+      return theme.fg("dim", `${label} \uef0e `);
   }
 }
 

@@ -75,10 +75,13 @@ export default function sessionName(pi: ExtensionAPI): void {
 
   /** Publish the last user message. Repeated updates keep the key's status slot. */
   function publish(extensionCtx: ExtensionContext): void {
+    const {theme} = extensionCtx.ui
     extensionCtx.ui.setStatus(
-      STATUS_KEY, lastMessage === ""
-        ? undefined :
+      STATUS_KEY,
+      theme.fg("dim", lastMessage === ""
+        ? "" :
         "🤖 " + lastMessage
+      )
     );
   }
 
