@@ -4,7 +4,7 @@
   "defaultModel": "nube/glm-5.3-flash",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
-  "theme": "e-ink",
+  "theme": "e-ink-dark",
   "tuiMode": "fullscreen",
   "enableInstallTelemetry": true,
   "packages": [
@@ -17,12 +17,13 @@
     "openai/gpt-5.6-luna",
     "openai/gpt-5.6-sol",
     "cpa/deepseek/deepseek-v4.1-flash",
+    "cpa/nube/deepseek-v4.1-flash",
     "cpa/nube/glm-5.3",
     "cpa/nube/glm-5.3-flash",
+    "cpa/neuralwatt/deepseek-v4.1-flash",
     "cpa/neuralwatt/glm-5.3",
     "cpa/neuralwatt/glm-5.3-flash",
-    "anthropic/claude-opus-5-5",
-    "cpa/neuralwatt/deepseek-v4.1-flash"
+    "anthropic/claude-opus-5-5"
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,

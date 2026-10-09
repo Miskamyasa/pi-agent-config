@@ -81,7 +81,6 @@ expanding the change.
 # Research
 
 - Delegate repository exploration to scout agents.
-- Do not duplicate repository exploration in the main agent.
 - Research only information required for the confirmed scope.
 - Before writing, know the intended files and primary functions.
 - Inspect call sites only when they affect the requested behavior.

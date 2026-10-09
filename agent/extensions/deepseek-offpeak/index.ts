@@ -1,13 +1,18 @@
 /**
- * DeepSeek Off-Peak Indicator Extension
+ * Off-Peak Indicator Extension
  *
- * Shows in the footer whether DeepSeek API off-peak billing time is active.
- * Peak hours are 01:00-04:00 and 06:00-10:00 UTC, Monday to Friday, excluding
- * Chinese public holidays. In Beijing time (UTC+8, no DST) that is 09:00-12:00
- * and 14:00-18:00 on weekdays. All other hours are off-peak, including
- * weekends and holidays in full.
+ * Shows two footer items with provider billing states.
  *
- * Holiday data comes from NateScarlet/holiday-cn
+ * DeepSeek: peak hours are 01:00-04:00 and 06:00-10:00 UTC, Monday to Friday,
+ * excluding Chinese public holidays. In Beijing time (UTC+8, no DST) that is
+ * 09:00-12:00 and 14:00-18:00 on weekdays. All other hours are off-peak,
+ * including weekends and holidays in full.
+ *
+ * Ollama: peak hours are 12:00-18:00 UTC on weekdays. All other hours are
+ * off-peak, including weekends in full. Ollama has no holiday calendar, so its
+ * state is purely time-based and never "unknown".
+ *
+ * DeepSeek holiday data comes from NateScarlet/holiday-cn
  * (https://github.com/NateScarlet/holiday-cn), fetched once per process launch
  * and cached in <agentDir>/deepseek-offpeak.json.
  */
@@ -15,15 +20,20 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-const STATUS_KEY = "deepseek";
+const STATUS_KEY_DEEPSEEK = "deepseek";
+const STATUS_KEY_OLLAMA = "ollama";
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
 /** Peak windows as half-open [start, end) minute-of-day ranges, Beijing time. */
 const PEAK_WINDOWS: ReadonlyArray<readonly [start: number, end: number]> = [
   [9 * 60, 12 * 60],
   [14 * 60, 18 * 60],
 ];
-/** Moments where the state can flip: window edges plus Beijing midnight. */
+/** Moments where the DeepSeek state can flip: window edges plus Beijing midnight. */
 const BOUNDARY_MINUTES = [0, 9 * 60, 12 * 60, 14 * 60, 18 * 60];
+/** Peak window as half-open [start, end) minute-of-day ranges, UTC. */
+const OLLAMA_PEAK_WINDOWS: ReadonlyArray<readonly [start: number, end: number]> = [[12 * 60, 18 * 60]];
+/** Moments where the Ollama state can flip: window edges plus UTC midnight. */
+const OLLAMA_BOUNDARY_MINUTES = [0, 12 * 60, 18 * 60];
 const FETCH_TIMEOUT_MS = 5000;
 const STATE_PATH = join(getAgentDir(), "deepseek-offpeak.json");
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -41,13 +51,20 @@ export function chinaDayKey(date: Date): string {
   return `${shifted.getUTCFullYear()}-${month}-${day}`;
 }
 
-/** Weekday (0=Sun..6=Sat) and minute-of-day in Beijing time. */
-export function beijingParts(date: Date): { dayOfWeek: number; minuteOfDay: number } {
-  const shifted = new Date(date.getTime() + BEIJING_OFFSET_MS);
+/** Weekday (0=Sun..6=Sat) and minute-of-day in a UTC-offset-shifted calendar. */
+function shiftedParts(date: Date, offsetMs: number): { dayOfWeek: number; minuteOfDay: number } {
+  const shifted = new Date(date.getTime() + offsetMs);
   return {
     dayOfWeek: shifted.getUTCDay(),
     minuteOfDay: shifted.getUTCHours() * 60 + shifted.getUTCMinutes(),
   };
+}
+
+function inPeakWindow(
+  minuteOfDay: number,
+  windows: ReadonlyArray<readonly [start: number, end: number]>,
+): boolean {
+  return windows.some(([start, end]) => minuteOfDay >= start && minuteOfDay < end);
 }
 
 /**
@@ -61,28 +78,41 @@ export function peakState(
   holidays: ReadonlySet<string>,
   knownYears: ReadonlySet<number>,
 ): PeakState {
-  const { dayOfWeek, minuteOfDay } = beijingParts(date);
+  const { dayOfWeek, minuteOfDay } = shiftedParts(date, BEIJING_OFFSET_MS);
   if (dayOfWeek === 0 || dayOfWeek === 6) return "offpeak";
   const key = chinaDayKey(date);
   if (holidays.has(key)) return "offpeak";
-  const inWindow = PEAK_WINDOWS.some(([start, end]) => minuteOfDay >= start && minuteOfDay < end);
-  if (!inWindow) return "offpeak";
+  if (!inPeakWindow(minuteOfDay, PEAK_WINDOWS)) return "offpeak";
   return knownYears.has(Number(key.slice(0, 4))) ? "peak" : "unknown";
 }
 
+/**
+ * Ollama billing state for an instant: peak on weekdays inside 12:00-18:00
+ * UTC, off-peak otherwise. No external data, so never "unknown".
+ */
+export function ollamaPeakState(date: Date): PeakState {
+  const { dayOfWeek, minuteOfDay } = shiftedParts(date, 0);
+  if (dayOfWeek === 0 || dayOfWeek === 6) return "offpeak";
+  return inPeakWindow(minuteOfDay, OLLAMA_PEAK_WINDOWS) ? "peak" : "offpeak";
+}
+
 /** Next instant strictly after `from` where the state can flip. */
-export function nextBoundary(from: Date): Date {
-  const shifted = new Date(from.getTime() + BEIJING_OFFSET_MS);
+export function nextBoundary(
+  from: Date,
+  boundaries: ReadonlyArray<number>,
+  offsetMs: number,
+): Date {
+  const shifted = new Date(from.getTime() + offsetMs);
   const minuteOfDay =
     shifted.getUTCHours() * 60 +
     shifted.getUTCMinutes() +
     shifted.getUTCSeconds() / 60 +
     shifted.getUTCMilliseconds() / 60_000;
   const dayStartUtcMs = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate());
-  for (const minute of BOUNDARY_MINUTES) {
-    if (minute > minuteOfDay) return new Date(dayStartUtcMs + minute * 60_000 - BEIJING_OFFSET_MS);
+  for (const minute of boundaries) {
+    if (minute > minuteOfDay) return new Date(dayStartUtcMs + minute * 60_000 - offsetMs);
   }
-  return new Date(dayStartUtcMs + 24 * 60 * 60_000 - BEIJING_OFFSET_MS);
+  return new Date(dayStartUtcMs + 24 * 60 * 60_000 - offsetMs);
 }
 
 export type HolidayParseResult = { ok: true; days: string[] } | { ok: false };
@@ -126,15 +156,18 @@ export function parseCache(data: unknown): Map<number, string[]> {
   return out;
 }
 
-/** Footer text for one billing state. */
-export function renderStatus(state: PeakState, theme: { fg: (color: string, text: string) => string }): string {
+/**
+ * Footer text for one provider's billing state. Off-peak is the good state, so
+ * it gets the highlight color; peak is shown dim with a blocked icon.
+ */
+export function renderStatus(state: PeakState, label: string, theme: { fg: (color: string, text: string) => string }): string {
   switch (state) {
     case "offpeak":
-      return theme.fg("dim", "🌙 off-peak");
+      return theme.fg("success", `${label} 🚗 off-peak`);
     case "peak":
-      return theme.fg("warning", "⚡ peak");
+      return theme.fg("dim", `${label} 🚫 peak`);
     case "unknown":
-      return theme.fg("dim", "⚡ peak?");
+      return theme.fg("dim", `${label} 🚫 peak?`);
   }
 }
 
@@ -167,8 +200,11 @@ export default function deepseekOffpeak(pi: ExtensionAPI) {
   const publish = (ctx: ExtensionContext): void => {
     if (!ctx.hasUI) return;
     try {
-      const state = peakState(new Date(), holidaySet(), new Set(yearHolidays.keys()));
-      ctx.ui.setStatus(STATUS_KEY, renderStatus(state, ctx.ui.theme as StatusTheme));
+      const now = new Date();
+      const theme = ctx.ui.theme as StatusTheme;
+      const deepseek = peakState(now, holidaySet(), new Set(yearHolidays.keys()));
+      ctx.ui.setStatus(STATUS_KEY_DEEPSEEK, renderStatus(deepseek, "DeepSeek", theme));
+      ctx.ui.setStatus(STATUS_KEY_OLLAMA, renderStatus(ollamaPeakState(now), "Ollama", theme));
     } catch {
       /* a TUI glitch must not break the session */
     }
@@ -226,7 +262,9 @@ export default function deepseekOffpeak(pi: ExtensionAPI) {
     if (timer !== undefined) clearTimeout(timer);
     const now = Date.now();
     // Slack lands the refresh just past the boundary, not on it.
-    const delay = Math.max(0, nextBoundary(new Date(now)).getTime() - now) + 250;
+    const nextDeepseek = nextBoundary(new Date(now), BOUNDARY_MINUTES, BEIJING_OFFSET_MS).getTime();
+    const nextOllama = nextBoundary(new Date(now), OLLAMA_BOUNDARY_MINUTES, 0).getTime();
+    const delay = Math.max(0, Math.min(nextDeepseek, nextOllama) - now) + 250;
     timer = setTimeout(() => {
       timer = undefined;
       if (gen !== generation) return;
@@ -262,7 +300,8 @@ export default function deepseekOffpeak(pi: ExtensionAPI) {
     abort = undefined;
     if (ctx.hasUI) {
       try {
-        ctx.ui.setStatus(STATUS_KEY, undefined);
+        ctx.ui.setStatus(STATUS_KEY_DEEPSEEK, undefined);
+        ctx.ui.setStatus(STATUS_KEY_OLLAMA, undefined);
       } catch {
         /* swallow */
       }
