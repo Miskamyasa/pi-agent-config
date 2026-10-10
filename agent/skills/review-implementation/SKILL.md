@@ -57,6 +57,12 @@ Review an EXECUTED IMPLEMENTATION (implementation-review mode).
 - Drift: find changes not justified by the plan scope.
 - Regressions: inspect the diff, touched files, call sites, error
   paths, state changes, and side effects.
+- Contract scope: when the clients and the backend are both first-party,
+  the declared contract between them is the supported input surface. The
+  backend must reject out-of-contract input; require and review the test
+  for that rejection. Do not raise a finding that only cites a Go/Elixir
+  difference in how malformed input is parsed. Do not ask a client to
+  handle a response the backend cannot produce.
 - For each finding, propose a fix direction.
 
 ## Finding Rules

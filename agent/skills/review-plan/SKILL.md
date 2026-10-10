@@ -76,6 +76,12 @@ cited sources.
 - Completeness: no requirement from the discovery is dropped; no step
   exceeds the confirmed scope.
 - Assumptions: explicit, minimal, and safe.
+- Contract scope: when the clients and the backend are both first-party,
+  the declared contract between them is the supported input surface. The
+  backend must reject out-of-contract input; require a test for that
+  rejection. Do not require a Go/Elixir match in how malformed input is
+  parsed. Do not require a client to handle a response the backend cannot
+  produce.
 - Acceptance criteria: each step states a verifiable outcome.
 - Risks: the plan addresses error paths, state changes, and migration
   concerns that touch the scope.

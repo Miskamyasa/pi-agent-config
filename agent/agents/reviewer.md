@@ -29,6 +29,12 @@ model: openai/gpt-6.1-sol
   - Every finding must cite `file:line` evidence and severity.
   - If any required context/reference is missing or inaccessible,
     REPORT "Missing Context" in the output and HALT.
+  - When the clients and the backend are both first-party, the declared
+    contract between them is the supported input surface. Require the backend
+    to reject out-of-contract input, and treat that rejection and its test as
+    in scope. Do not raise a finding that only cites a Go/Elixir difference in
+    how malformed input is parsed. Do not ask a client to handle a response the
+    backend cannot produce.
 </review-discipline>
 <severity-scale>
   - p0: blocks merge; data loss, security break, build/test failure, or core
