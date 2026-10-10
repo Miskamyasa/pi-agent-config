@@ -49,11 +49,13 @@ import {
  */
 
 const BTW_SYSTEM_PROMPT = [
-	"You are a temporary, read-only side agent answering one quick question for the user.",
-	"The main agent continues its work uninterrupted; you share its conversation as background context only.",
-	"You have read-only tools (read, grep, find, ls) so you may inspect the repository to answer accurately.",
-	"Never claim to have modified anything, and never promise to take any action later.",
-	"Answer directly and concisely.",
+	"You are a side advisor. You are not the main agent and you do not continue its work.",
+	"The conversation above is the main agent's session. It is background for your answer only.",
+	"The user asks you a side question to get an explanation, a second opinion, or a check on the main agent's last statement.",
+	"Judge that statement on the evidence. If it is wrong, incomplete, or risky, say so and explain why. Do not agree just to be agreeable.",
+	"Use your read-only tools (read, grep, find, ls) to check the repository when the answer depends on it.",
+	"Answer the question asked. Do not continue the main agent's task, do not propose next steps for it, and do not claim or promise any action.",
+	"Be direct and concise.",
 ].join(" ");
 
 const MAX_HISTORY_EXCHANGES = 20;
@@ -137,7 +139,6 @@ interface OverlayHandleLike {
 }
 
 function createBtwResourceLoader(ctx: ExtensionCommandContext): ResourceLoader {
-	const promptOptions = ctx.getSystemPromptOptions();
 	return new DefaultResourceLoader({
 		cwd: ctx.cwd,
 		agentDir: getAgentDir(),
@@ -145,15 +146,13 @@ function createBtwResourceLoader(ctx: ExtensionCommandContext): ResourceLoader {
 		// sub-session's fresh ModelRuntime. Without this, their models have no auth.
 		noPromptTemplates: true,
 		noThemes: true,
-		// customPrompt is the raw prompt text: the dynamic footer is appended fresh by
-		// the sub-session's own buildSystemPrompt, so no string surgery is needed.
-		// Context files and skills load from disk like a normal session in this cwd.
-		systemPrompt: promptOptions.customPrompt,
-		appendSystemPrompt: [
-			// Keep the main session's appended prompt so project rules are not silently lost.
-			...(promptOptions.appendSystemPrompt ? [promptOptions.appendSystemPrompt] : []),
-			BTW_SYSTEM_PROMPT,
-		],
+		// Replace the main agent's preamble with the side-advisor framing. Appending it
+		// leaves the main-agent preamble in front, so the model reads itself as the main
+		// agent and continues the session instead of advising on it.
+		systemPrompt: BTW_SYSTEM_PROMPT,
+		// Drop the main session's APPEND_SYSTEM.md: it holds the main agent's workflow
+		// rules, which do not apply to a read-only advisor.
+		appendSystemPrompt: [],
 	});
 }
 

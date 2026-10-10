@@ -61,6 +61,12 @@ evicted). `/new`, restarts, and reloads clear the side threads.
 - **Sub-session extensions.** `noExtensions: true` is removed from the
   sub-session's `DefaultResourceLoader`, so provider extensions (e.g. `cpa`)
   re-register inside it and their models get auth.
+- **System prompt.** The sub-session's preamble is now `BTW_SYSTEM_PROMPT`
+  (`systemPrompt`), not the main session's `customPrompt` with the BTW prompt
+  appended. The main session's `APPEND_SYSTEM.md` is dropped
+  (`appendSystemPrompt: []`). The prompt text is rewritten to frame the model as
+  a side advisor that may challenge the main agent's last statement, not as a
+  continuation of the main session.
 - **Input widget.** Single-line `Input` replaced with a multi-line `Editor`
   (custom `EditorTheme`, blank `borderColor`). Input rendering now wraps to
   multiple rows.
@@ -74,7 +80,7 @@ evicted). `/new`, restarts, and reloads clear the side threads.
 ## Unchanged from upstream
 
 Overlay geometry, abort/copy/close logic, the read-only tool whitelist
-`["read", "grep", "find", "ls"]`, the `BTW_SYSTEM_PROMPT`, in-memory
-`SettingsManager` (sub-session model switches never touch global pi settings),
-and the journal-seeding approach (`buildSessionContext` + `convertToLlm` into
-`SessionManager.inMemory`) are unchanged.
+`["read", "grep", "find", "ls"]`, in-memory `SettingsManager` (sub-session model
+switches never touch global pi settings), and the journal-seeding approach
+(`buildSessionContext` + `convertToLlm` into `SessionManager.inMemory`) are
+unchanged.
