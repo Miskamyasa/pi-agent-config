@@ -23,6 +23,16 @@ const MODELS_DEV_MODELS_URL = "https://models.dev/models.json";
 const ZERO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 const CPA_COMPAT = { supportsDeveloperRole: false };
 
+// CPA exposes only off/high/max. Other pi levels are marked unsupported.
+const CPA_THINKING_LEVEL_MAP: ProviderModelConfig["thinkingLevelMap"] = {
+  minimal: null,
+  low: null,
+  medium: null,
+  xhigh: null,
+  high: "high",
+  max: "max",
+};
+
 const EMPTY_STATE: State = { modelsFetchedAt: null, modelsExpireAt: null, models: null };
 
 let state: State = { ...EMPTY_STATE };
@@ -139,7 +149,8 @@ function buildModel(id: string, cat: ModelsDevData | null): ProviderModelConfig 
     return {
       id,
       name: formatName(id),
-      reasoning: false,
+      reasoning: true,
+      thinkingLevelMap: CPA_THINKING_LEVEL_MAP,
       input: ["text"],
       contextWindow: DEFAULT_CONTEXT_WINDOW,
       maxTokens: DEFAULT_MAX_OUTPUT_TOKENS,
@@ -151,7 +162,8 @@ function buildModel(id: string, cat: ModelsDevData | null): ProviderModelConfig 
   return {
     id,
     name: formatName(id),
-    reasoning: entry.reasoning === true,
+    reasoning: true,
+    thinkingLevelMap: CPA_THINKING_LEVEL_MAP,
     input: (entry.modalities?.input ?? ["text"]).filter((t) => t === "text" || t === "image"),
     contextWindow: limit.context,
     maxTokens: limit.output,

@@ -60,8 +60,7 @@ Review an EXECUTED IMPLEMENTATION (implementation-review mode).
 - Contract scope: when the clients and the backend are both first-party,
   the declared contract between them is the supported input surface. The
   backend must reject out-of-contract input; require and review the test
-  for that rejection. Do not raise a finding that only cites a Go/Elixir
-  difference in how malformed input is parsed. Do not ask a client to
+  for that rejection. Do not ask a client to
   handle a response the backend cannot produce.
 - For each finding, propose a fix direction.
 
@@ -94,10 +93,9 @@ Review an EXECUTED IMPLEMENTATION (implementation-review mode).
 - When the user accepts the result, propose a commit message using
   the following rules:  
   A title, no more than 72 characters.  
-  A body, with a bullet list of changes made after all steps and review.
+  A body, with a bullet list of changes made after all steps and review. Concise.
+  - No more than 5 bullets.
   - Each bullet must be no more than 72 characters.
   - Do not include headings.
-  - No more than 4-5 bullets.
   - Do not include verifications and tests you made.
   - Do not wrap with any symbols.
-  - No empty lines between the title and body.
