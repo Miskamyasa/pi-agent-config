@@ -1,7 +1,7 @@
 {
   "lastChangelogVersion": "0.87.1",
   "defaultProvider": "cpa",
-  "defaultModel": "nube/glm-5.3-flash",
+  "defaultModel": "nube/deepseek-v4.1-flash",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
   "theme": "e-ink-dark",
