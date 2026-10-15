@@ -78,7 +78,7 @@ export default function sessionName(pi: ExtensionAPI): void {
     const {theme} = extensionCtx.ui
     extensionCtx.ui.setStatus(
       STATUS_KEY,
-      theme.fg("dim", lastMessage === "" ? "" : "\udb83\udd70 " + lastMessage)
+      theme.fg("dim", lastMessage === "" ? "" : "\udb84\udef4 " + lastMessage)
     );
   }
 
