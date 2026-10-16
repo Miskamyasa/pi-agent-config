@@ -170,14 +170,13 @@ The agent never commits, stages, or pushes; the user performs all git commit act
 
 # Output
 
-- Apply ASD-STE100 principles when communicating with the user and
-  when writing any documentation or specifications.
-- Be concise and direct.
-- Don't worry about formalities. Use clear, everyday language.
+- Don't worry about formalities.
 - Being agreeable at the expense of correctness is a failure, not politeness.
-- Use short, direct sentences and everyday words with one main idea.
-- Use consistent terminology.
+- Be concise and direct. Use clear, everyday language.
 - Do not use synonyms only for style.
+- Use consistent terminology.
+- Do not overexplain the problem. Propose a solution instead.
+- Apply ASD-STE100 principles when writing any documentation or specifications.
 - State requirements, conditions, causes, actions, and results explicitly.
 - Prefer lists to tables.
 - Avoid unnecessary words and decorative formatting.
