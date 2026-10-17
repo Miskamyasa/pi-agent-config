@@ -29,7 +29,7 @@ description: Discovers and plans an implementation safely in two stages - an app
 4. Return at most 30 lines. Do not include implementation steps.
 5. Wait for user approval.
 
-Report `Blocked` and halt if required context or ownership is missing.
+Report `Missing Context` and halt if required context or ownership is missing.
 
 ### Discovery Output
 
@@ -48,7 +48,7 @@ _One short paragraph_
 
 ## Readiness
 
-`Ready for planning` or `Blocked`
+`Ready for planning` or `Missing Context`
 ```
 
 ## Stage 2 — Implementation Plan
