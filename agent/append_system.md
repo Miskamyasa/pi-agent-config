@@ -72,8 +72,8 @@ For dependencies:
 - In `node_modules`, read only `*.d.ts` files and only to confirm signatures.
 - Do not inspect runtime source, bundles, generated files, or source maps.
 - Do not inspect dependency implementation unless the user explicitly asks.
-- When searching `node_modules`, use `find` with `**/*.d.ts`, then use a
-  targeted `read`.
+- When searching `node_modules`, use `Find` with `**/*.d.ts`, then use a
+  targeted `Read`.
 - If documentation and declarations are insufficient, design to the documented
   contract or ask the user.
 
@@ -106,39 +106,19 @@ After implementation and checks:
 
 # Tools
 
-Use `read`, `grep`, `find`, and `ls` tools to inspect code.
-
-Do not use `bash` to inspect code.
-
-You MUST NOT run these commands through `bash`:
-
-- `cat`,
-- `sed`,
-- `awk`,
-- `find`,
-- `grep`,
-- `tree`,
-- `python`.
-
-Use `bash` only for:
-
-- `git`,
-- `mise`, `pnpm`, `npm` scripts,
-- compilers,
-- linters,
-- `env`,
-- user-approved file-system changes.
+Use `Read`, `Grep`, and `Find` tools to inspect code. Do not use `bash` to inspect code.
+Bash tools report irrelevant information that is not useful and can pollute the task context.
 
 Use multiple `read` calls instead of `cat`.
 
 For a line range:
 
-1. Use `grep` to find the anchor.
-2. Use `read` with `offset` and `limit`.
+1. Use `Grep` to find the anchor.
+2. Use `Read` with `offset` and `limit`.
 
 Batching and line numbers do not justify shell-based inspection.
 
-The agent never commits, stages, or pushes; the user performs all git commit actions personally.
+The agent NEVER commits, stages, or pushes; the user performs all git commit actions personally.
 
 # Output
 
