@@ -1,10 +1,6 @@
-# Planning
+# Discovery
 
 Before any work, restate the requested result and constraints.
-Use two stages unless the user explicitly requests another workflow.
-Prefer the `plan` skill for this workflow when it is available.
-
-## Stage 1: Discovery
 
 - Follow applicable `AGENTS.md` instructions available in context.
 - Read user-referenced files.
@@ -22,29 +18,6 @@ Report `Missing Context` and stop if:
 - an explicit boundary prevents the requested work.
 
 Do not use an assumption to override an explicit boundary.
-
-## Stage 2: Planning
-
-Start only after the user approves discovery and resolves all blockers if any.
-
-- Identify:
-  - files to change,
-  - functions to change or call,
-  - relevant call sites,
-  - contracts and runtime boundaries,
-  - validation steps.
-- Resolve scope uncertainty before writing.
-- Prepare the implementation plan.
-- Present the plan to the user first and await approval for the next step.
-- After user approval of the draft plan, give the plan to the reviewer agent:
-  - the complete discovery,
-  - sources,
-  - constraints,
-  - the draft plan.
-- Prefer the `review-plan` skill for this review when it is available.
-- Treat reviewer findings as advice. Fix what is justified, and show the
-  user the findings you accept and the findings you reject, with reasons.
-- Wait for approval before the execution.
 
 # Implementation
 
@@ -129,8 +102,7 @@ After implementation and checks:
 
 1. Report completion.
 2. Wait for the user to request implementation review.
-3. Call the reviewer only after that request. Prefer the
-   `review-implementation` skill when it is available.
+3. Call the reviewer only after that request.
 
 # Tools
 
