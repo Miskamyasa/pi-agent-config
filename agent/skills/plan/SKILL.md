@@ -29,14 +29,14 @@ description: Discovers and plans an implementation safely in two stages - an app
 4. Return at most 30 lines. Do not include implementation steps.
 5. Wait for user approval.
 
-Report `Blocked` and halt if required context or ownership is missing.
+Report `Missing Context` and halt if required context or ownership is missing.
 
 ### Discovery Output
 
 ```markdown
 ## Problem
 
-_One short paragraph_
+_your understanding of the goal_
 
 ## Ownership and Boundaries
 
@@ -46,9 +46,13 @@ _One short paragraph_
 
 - _blocking items, or `None`_
 
+## Assumptions
+
+- _assumptions made during research and discovery_
+
 ## Readiness
 
-`Ready for planning` or `Blocked`
+`Ready for planning` or `Missing Context`
 ```
 
 ## Stage 2 — Implementation Plan
@@ -76,13 +80,13 @@ _One short paragraph_
 ### Plan Output
 
 ```markdown
-## Missing Context
-
-_List blockers and halt, or omit this section_
-
 ## Problem Statement
 
 _One short paragraph_
+
+## Missing Context
+
+_List blockers and halt, or omit this section_
 
 ## Assumptions
 
