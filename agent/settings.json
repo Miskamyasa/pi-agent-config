@@ -4,7 +4,7 @@
   "defaultModel": "nube/deepseek-v4.1-flash",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
-  "theme": "e-ink",
+  "theme": "e-ink-dark",
   "tuiMode": "fullscreen",
   "enableInstallTelemetry": true,
   "packages": [

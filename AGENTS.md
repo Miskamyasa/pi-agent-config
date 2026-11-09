@@ -84,6 +84,9 @@ Global:
   `enabledModels` setting via `ctx.scopedModels`.)
 - `extensions/temperature/config.json` — per-model sampling temperature
   overrides. A missing, empty, or invalid file disables the extension.
+- `extensions/deepseek-offpeak/config.json` — `{ "enabled": boolean }`. The
+  `/peak:off` and `/peak:on` commands hide or show the DeepSeek and Ollama
+  peak-time footer widgets. A missing or invalid file keeps them on.
 - `extensions/session-name/config.json` — `{ "model": "provider/model" }`. The
   named model distills the session name once per session. A missing, empty, or
   invalid file, or an unknown or unauthenticated model, leaves the heuristic

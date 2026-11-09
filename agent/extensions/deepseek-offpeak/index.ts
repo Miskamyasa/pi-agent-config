@@ -15,9 +15,13 @@
  * DeepSeek holiday data comes from NateScarlet/holiday-cn
  * (https://github.com/NateScarlet/holiday-cn), fetched once per process launch
  * and cached in <agentDir>/deepseek-offpeak.json.
+ *
+ * Config: <agentDir>/extensions/deepseek-offpeak/config.json holds
+ * `{ "enabled": boolean }`. A missing or invalid value keeps the widgets on.
+ * Run /peak:on or /peak:off to set it.
  */
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const STATUS_KEY_DEEPSEEK = "deepseek";
@@ -36,6 +40,7 @@ const OLLAMA_PEAK_WINDOWS: ReadonlyArray<readonly [start: number, end: number]> 
 const OLLAMA_BOUNDARY_MINUTES = [0, 12 * 60, 18 * 60];
 const FETCH_TIMEOUT_MS = 5000;
 const STATE_PATH = join(getAgentDir(), "deepseek-offpeak.json");
+const CONFIG_PATH = join(getAgentDir(), "extensions", "deepseek-offpeak", "config.json");
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const holidayUrl = (year: number): string =>
@@ -157,6 +162,18 @@ export function parseCache(data: unknown): Map<number, string[]> {
 }
 
 /**
+ * Reads `{ "enabled": boolean }`. Only a literal boolean turns the widgets off,
+ * so a missing or malformed file keeps them on.
+ */
+export function parseConfig(data: unknown): { enabled: boolean } {
+  if (typeof data === "object" && data !== null && !Array.isArray(data)) {
+    const enabled = (data as { enabled?: unknown }).enabled;
+    if (typeof enabled === "boolean") return { enabled };
+  }
+  return { enabled: true };
+}
+
+/**
  * Footer text for one provider's billing state. Off-peak is the good state, so
  * it gets the highlight color; peak is shown dim with a blocked icon.
  */
@@ -176,6 +193,7 @@ export default function deepseekOffpeak(pi: ExtensionAPI) {
   // Per-factory state: a fresh instance owns it after every /reload or session
   // replacement, so the generation counter below is scoped to this closure.
   let yearHolidays = new Map<number, string[]>();
+  let enabled = true;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let generation = 0;
   let abort: AbortController | undefined;
@@ -196,9 +214,31 @@ export default function deepseekOffpeak(pi: ExtensionAPI) {
     }
   };
 
+  const loadConfig = (): void => {
+    try {
+      enabled = parseConfig(JSON.parse(readFileSync(CONFIG_PATH, "utf8"))).enabled;
+    } catch {
+      enabled = true;
+    }
+  };
+
+  const writeConfig = (): void => {
+    try {
+      mkdirSync(dirname(CONFIG_PATH), { recursive: true });
+      writeFileSync(CONFIG_PATH, `${JSON.stringify({ enabled }, null, 2)}\n`);
+    } catch {
+      /* the toggle still applies to this session */
+    }
+  };
+
   const publish = (ctx: ExtensionContext): void => {
     if (!ctx.hasUI) return;
     try {
+      if (!enabled) {
+        ctx.ui.setStatus(STATUS_KEY_DEEPSEEK, undefined);
+        ctx.ui.setStatus(STATUS_KEY_OLLAMA, undefined);
+        return;
+      }
       const now = new Date();
       const theme = ctx.ui.theme as StatusTheme;
       const deepseek = peakState(now, holidaySet(), new Set(yearHolidays.keys()));
@@ -272,8 +312,27 @@ export default function deepseekOffpeak(pi: ExtensionAPI) {
     }, delay);
   };
 
+  pi.registerCommand("peak:on", {
+    description: "Show the DeepSeek and Ollama peak-time footer widgets",
+    handler: async (_args, ctx) => {
+      enabled = true;
+      writeConfig();
+      publish(ctx);
+    },
+  });
+
+  pi.registerCommand("peak:off", {
+    description: "Hide the DeepSeek and Ollama peak-time footer widgets",
+    handler: async (_args, ctx) => {
+      enabled = false;
+      writeConfig();
+      publish(ctx);
+    },
+  });
+
   pi.on("session_start", (event, ctx) => {
     const gen = ++generation;
+    loadConfig();
     loadCache();
     publish(ctx);
     scheduleNext(ctx, gen);
