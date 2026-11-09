@@ -61,12 +61,15 @@ _your understanding of the goal_
 2. Run targeted scouts only for confirmed owners and scope.
 3. Reuse existing architecture and mechanisms. Follow KISS and YAGNI.
 4. Draft a dependency-ordered plan from small utilities and components
-   to full flows.
-5. When the draft is ready, validate it through the reviewer agent.
+   to full flows AND SHOW IT TO USER IF NOTHING IS IN DRIFT WITH THE GOAL.
+5. When the draft is approved, validate it through the reviewer agent.
    Use the `review-plan` skill when it is available.
 
 ### Plan Rules
 
+- If an approved plan needs correction or broader scope, report the
+  blocker and affected step. Stop until the user approves a revised
+  plan. Do not work around it.
 - Ground every step in the approved sources and code. Do not speculate.
 - Keep assumptions explicit and minimal. They must not override an
   architecture boundary.

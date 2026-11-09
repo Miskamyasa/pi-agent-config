@@ -25,6 +25,8 @@ Do not implement until the user explicitly requests implementation.
 
 - Make the smallest correct change.
 - Follow repository conventions, instructions, and standards.
+- Choose syntax and naming within scope. Do not decide unspecified
+  behavior, contracts, state changes, or architecture.
 - Do not perform unrelated cleanup.
 - Consolidate duplicate code introduced or directly touched by the change.
 - Preserve unrelated user edits.
@@ -35,6 +37,8 @@ Do not implement until the user explicitly requests implementation.
 - Apply ASD-STE100 principles to comments where applicable.
 - Complete all related edits before running checks.
 - Run relevant checks only after implementation is complete.
+- Fix check failures only if caused by this task and fixable within
+  scope. Otherwise, report and stop.
 
 For a mechanical refactor, compare old and new behavior after the edit. Verify:
 

@@ -2,7 +2,7 @@
 name: scout
 description: Use this agent when you need scoped read-only research with evidence-backed findings. Do not use it's report as an implementation advice
 tools: read, grep, find, ls, bash
-model: openai/gpt-5.6-luna
+model: cpa/neuralwatt/glm-5.3-flash
 ---
 
 <system-reminder>
