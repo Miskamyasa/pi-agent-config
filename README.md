@@ -23,6 +23,7 @@ Download pi at [https://pi.dev/](https://pi.dev/).
 - `deepseek-offpeak` - footer indicator for DeepSeek API off-peak billing hours (Chinese public holidays aware).
 - `temperature` - per-model sampling temperature overrides for outgoing model requests.
 - `session-name` - distills the session name from the first user message, and shows the last user message in the status bar.
+- `enh` - `/enh <text>` fixes spelling and grammar with the configured model and puts the result in the prompt box.
 
 ## License
 

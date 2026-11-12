@@ -4,22 +4,19 @@
   "defaultModel": "nube/deepseek-v4.1-flash",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
-  "theme": "e-ink-dark",
+  "theme": "e-ink",
   "tuiMode": "fullscreen",
   "enableInstallTelemetry": true,
-  "packages": [
-    "npm:pi-ollama-cloud",
-    "npm:pi-tool-display"
-  ],
+  "packages": ["npm:pi-ollama-cloud", "npm:pi-tool-display"],
   "defaultTools": [],
   "hideThinkingBlock": true,
   "enabledModels": [
     "anthropic/claude-opus-5-5",
-    "cpa/deepseek/deepseek-v4.1-flash",
-    "cpa/neuralwatt/deepseek-v4.1-flash",
+    "openai-codex/gpt-6.1-sol",
+    "cpa/fun/gpt-6.1-sol",
+    "cpa/fun/deepseek-v4.1-flash",
     "cpa/nube/deepseek-v4.1-flash",
-    "cpa/nube/glm-5.3-flash",
-    "openai-codex/gpt-6.1-sol"
+    "cpa/neuralwatt/glm-5.3-flash"
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,

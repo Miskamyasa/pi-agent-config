@@ -121,8 +121,7 @@ You MUST NOT run these commands through `bash`:
 - `awk`,
 - `find`,
 - `grep`,
-- `tree`,
-- `python`.
+- `tree`.
 
 Use `bash` only for:
 

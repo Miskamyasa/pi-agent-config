@@ -57,7 +57,7 @@ Conventions when editing or adding an extension:
   `temperature`, and `session-name` are original to this repo.
 
 Custom extensions in this repo: `on-demand-context`, `subagent`, `slye`,
-`btw`, `cpa`, `deepseek-offpeak`, `temperature`, `session-name`. The
+`btw`, `cpa`, `deepseek-offpeak`, `temperature`, `session-name`, `enh`. The
 `pi-tool-display` folder holds only a `config.json` (the code is the npm
 package `pi-tool-display`, declared in `settings.json` `packages`).
 
@@ -91,6 +91,9 @@ Global:
   named model distills the session name once per session. A missing, empty, or
   invalid file, or an unknown or unauthenticated model, leaves the heuristic
   name in place.
+- `extensions/enh/config.json` — `{ "model": "provider/model" }`. The named
+  model rewrites the text given to `/enh`. A missing, empty, or invalid file,
+  or an unknown or unauthenticated model, only disables the command.
 
 A dynamic state file stays under `agent/`, not in the extension folder, because
 nothing hand-edits it and its path is an extension constant:
