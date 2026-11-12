@@ -7,17 +7,18 @@
   "theme": "e-ink",
   "tuiMode": "fullscreen",
   "enableInstallTelemetry": true,
-  "packages": ["npm:pi-ollama-cloud", "npm:pi-tool-display"],
+  "packages": [
+    "npm:pi-ollama-cloud",
+    "npm:pi-tool-display"
+  ],
   "defaultTools": [],
   "hideThinkingBlock": true,
   "enabledModels": [
-    "anthropic/claude-opus-5-5",
-    "openai-codex/gpt-6.1-sol",
-    "cpa/fun/gpt-6.1-sol",
-    "cpa/fun/deepseek-v4.1-flash",
     "cpa/nube/deepseek-v4.1-flash",
+    "cpa/deepseek/deepseek-v4.1-flash",
     "cpa/neuralwatt/deepseek-v4.1-flash",
-    "cpa/fun/claude-haiku-5-5"
+    "cpa/fun/claude-opus-5-5",
+    "cpa/fun/gpt-6.1-sol"
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,

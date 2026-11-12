@@ -2,6 +2,6 @@
   "enabled": false,
   "model": {
     "provider": "cpa",
-    "id": "neuralwatt/deepseek-v4.1-flash"
+    "id": "neuralwatt/glm-5.3-flash"
   }
 }
