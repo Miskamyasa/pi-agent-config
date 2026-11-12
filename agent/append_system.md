@@ -4,7 +4,6 @@ Before any work, restate the requested result and constraints.
 
 - Follow applicable `AGENTS.md` instructions available in context.
 - Read user-referenced files.
-- Use scout findings as a high-level repository map.
 - Do not infer implementation ownership from the task description.
 - Keep research within the requested scope.
 - Return a discovery report of at most 30 lines.
@@ -57,7 +56,8 @@ expanding the change.
 
 # Research
 
-- Delegate repository exploration to scout agents.
+- Use scouts for code that is not yet in the session context. Read code that
+  is already in the context directly.
 - Research only information required for the confirmed scope.
 - Before writing, know the intended files and primary functions.
 - Inspect call sites only when they affect the requested behavior.

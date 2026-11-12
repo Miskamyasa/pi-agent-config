@@ -20,8 +20,8 @@ description: Discovers and plans an implementation safely in two stages - an app
 
 ## Stage 1 — Discovery
 
-1. Run an architecture scout across the whole repository before
-   targeted scouts.
+1. If owners are unclear, run an architecture scout before targeted
+   direct research.
 2. Map each requirement to its owner, existing mechanism, and
    integration boundary.
 3. Identify source conflicts, missing contracts, inaccessible
@@ -58,7 +58,7 @@ _your understanding of the goal_
 ## Stage 2 — Implementation Plan
 
 1. Use the approved discovery as a hard constraint.
-2. Run targeted scouts only for confirmed owners and scope.
+2. Research gaps directly. Send scouts to areas the discovery did not cover.
 3. Reuse existing architecture and mechanisms. Follow KISS and YAGNI.
 4. Draft a dependency-ordered plan from small utilities and components
    to full flows AND SHOW IT TO USER IF NOTHING IS IN DRIFT WITH THE GOAL.
