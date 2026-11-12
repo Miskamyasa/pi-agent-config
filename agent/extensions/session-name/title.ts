@@ -10,7 +10,6 @@ import { contentText, type Api, type Model } from "@earendil-works/pi-ai";
 import type { ModelRegistry, SessionEntry } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ModelRef } from "./config.ts";
 
 const MAX_NAME_CHARS = 120;
 const MAX_CONTEXT_CHARS = 2048;
@@ -84,13 +83,6 @@ export async function readProjectContext(cwd: string, files = PROJECT_FILES): Pr
   return parts.join("\n\n");
 }
 
-/** Find the configured model. Return null when it is unknown or unauthenticated. */
-export function resolveModel(registry: ModelRegistry, ref: ModelRef): Model<Api> | null {
-  const model = registry.find(ref.provider, ref.id);
-  if (!model || !registry.hasConfiguredAuth(model)) return null;
-  return model;
-}
-
 export interface DistillOptions {
   registry: ModelRegistry;
   model: Model<Api>;
@@ -99,11 +91,14 @@ export interface DistillOptions {
   signal: AbortSignal;
 }
 
+/** Outcome of a distillation: a name, or the reason none was produced. */
+export type DistillOutcome = { kind: "ok"; title: string } | { kind: "failed"; reason: string };
+
 /**
  * Ask the configured model for a name of one or two sentences.
- * Return null on any failure so the caller keeps the heuristic name.
+ * Report the failure reason so the caller can show it instead of hiding it.
  */
-export async function distillTitle(options: DistillOptions): Promise<string | null> {
+export async function distillTitle(options: DistillOptions): Promise<DistillOutcome> {
   const { registry, model, prompt, projectContext, signal } = options;
   const instruction = [
     "Name this coding session in one or two short sentences.",
@@ -115,14 +110,20 @@ export async function distillTitle(options: DistillOptions): Promise<string | nu
     ? `Request:\n${prompt}`
     : `Project files:\n${projectContext}\n\nRequest:\n${prompt}`;
 
-  try {
-    const response = await registry.complete(
-      model,
-      { messages: [{ role: "user", content: `${instruction}\n\n${body}`, timestamp: Date.now() }] },
-      { maxTokens: 96, temperature: 0, signal },
-    );
-    return oneLine(contentText(response.content)) || null;
-  } catch {
-    return null;
-  }
+    try {
+      const response = await registry.complete(
+        model,
+        { messages: [{ role: "user", content: `${instruction}\n\n${body}`, timestamp: Date.now() }] },
+        { maxTokens: 96, signal },
+      );
+      const title = oneLine(contentText(response.content));
+      if (title !== "") return { kind: "ok", title };
+      const blocks = response.content.map((block) => block.type).join(", ") || "none";
+      return {
+        kind: "failed",
+        reason: response.errorMessage ?? `returned no name (stopReason: ${response.stopReason}, blocks: ${blocks})`,
+      };
+    } catch (error) {
+      return { kind: "failed", reason: error instanceof Error ? error.message : String(error) };
+    }
 }

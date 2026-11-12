@@ -7,28 +7,33 @@
  */
 import { contentText, type Api, type Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext, ModelRegistry } from "@earendil-works/pi-coding-agent";
-import { buildPrompt, ENH_TIMEOUT_MS, loadConfig, type ModelRef } from "./config.ts";
+import { resolveModel } from "../shared/model.ts";
+import { buildPrompt, ENH_TIMEOUT_MS, loadConfig } from "./config.ts";
 
-/** Find the configured model. Return null when it is unknown or unauthenticated. */
-function resolveModel(registry: ModelRegistry, ref: ModelRef): Model<Api> | null {
-  const model = registry.find(ref.provider, ref.id);
-  if (!model || !registry.hasConfiguredAuth(model)) return null;
-  return model;
-}
+/** Result of one model call. */
+type EnhOutcome = { kind: "ok"; text: string } | { kind: "failed"; reason: string };
 
-/** Ask the model to rewrite the text. Return null on any failure. */
-async function enhance(registry: ModelRegistry, model: Model<Api>, text: string): Promise<string | null> {
+/**
+ * Ask the model to rewrite the text. Report the failure reason instead of
+ * swallowing it: an empty answer from a reasoning model looks identical to a
+ * transport error otherwise.
+ */
+async function enhance(registry: ModelRegistry, model: Model<Api>, text: string): Promise<EnhOutcome> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ENH_TIMEOUT_MS);
   try {
     const response = await registry.complete(
       model,
       { messages: [{ role: "user", content: buildPrompt(text), timestamp: Date.now() }] },
-      { maxTokens: 4096, temperature: 0, signal: controller.signal },
+      { signal: controller.signal },
     );
-    return contentText(response.content).trim() || null;
-  } catch {
-    return null;
+    const result = contentText(response.content).trim();
+    if (result !== "") return { kind: "ok", text: result };
+    const blocks = response.content.map((block) => block.type).join(", ") || "none";
+    const detail = response.errorMessage ?? `stopReason: ${response.stopReason}, blocks: ${blocks}`;
+    return { kind: "failed", reason: detail };
+  } catch (error) {
+    return { kind: "failed", reason: error instanceof Error ? error.message : String(error) };
   } finally {
     clearTimeout(timeout);
   }
@@ -53,19 +58,19 @@ export default function enh(pi: ExtensionAPI): void {
         ctx.ui.notify("/enh is disabled: set \"model\" in extensions/enh/config.json", "error");
         return;
       }
-      const model = resolveModel(ctx.modelRegistry, config);
-      if (!model) {
-        ctx.ui.notify(`/enh: model ${config.provider}/${config.id} is unknown or has no credentials`, "error");
+      const lookup = resolveModel(ctx.modelRegistry, config);
+      if ("reason" in lookup) {
+        ctx.ui.notify(`/enh: model ${config.provider}/${config.id} ${lookup.reason}`, "error");
         return;
       }
 
       ctx.ui.notify("Enhancing text…", "info");
-      const result = await enhance(ctx.modelRegistry, model, text);
-      if (result === null) {
-        ctx.ui.notify("/enh failed: the model returned no usable text", "error");
+      const outcome = await enhance(ctx.modelRegistry, lookup.model, text);
+      if (outcome.kind === "failed") {
+        ctx.ui.notify(`/enh failed: ${outcome.reason}`, "error");
         return;
       }
-      ctx.ui.setEditorText(result);
+      ctx.ui.setEditorText(outcome.text);
     },
   });
 }

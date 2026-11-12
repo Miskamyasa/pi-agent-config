@@ -9,6 +9,9 @@ Remote: `github:Miskamyasa/pi-agent-config.git`. Branch: `main`.
 ## Layout
 
 - `agent/extensions/` — custom TypeScript extensions (the main code here).
+- `agent/extensions/shared/` — helpers used by more than one extension. It has
+  no `index.ts`, so pi does not load it as an extension. Import with
+  `../shared/<file>.ts`.
 - `agent/agents/` — subagent definitions: `scout.md`, `reviewer.md`, `worker.md`.
 - `agent/skills/` — skills: `plan`, `review-plan`, `review-implementation`.
 - `agent/themes/` — theme JSON files (e.g. `e-ink.json`, `e-ink-dark.json`).
@@ -39,7 +42,8 @@ Conventions when editing or adding an extension:
   add per-folder `package.json` files.
 - An extension may add sibling modules: `config.ts` for stable string and
   number values, `utils.ts` for helpers. Import them with an explicit `.ts`
-  extension.
+  extension. Code shared by two or more extensions goes in
+  `agent/extensions/shared/`, never as a copy in each folder.
 - `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, and
   `@earendil-works/pi-tui` are peer packages supplied by the pi host at
   runtime. Never vendor a local copy — a duplicate module instance would
@@ -90,7 +94,7 @@ Global:
 - `extensions/session-name/config.json` — `{ "model": "provider/model" }`. The
   named model distills the session name once per session. A missing, empty, or
   invalid file, or an unknown or unauthenticated model, leaves the heuristic
-  name in place.
+  name in place and reports the reason as a one-time error notification.
 - `extensions/enh/config.json` — `{ "model": "provider/model" }`. The named
   model rewrites the text given to `/enh`. A missing, empty, or invalid file,
   or an unknown or unauthenticated model, only disables the command.

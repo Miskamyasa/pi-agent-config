@@ -23,6 +23,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { extensionFilePath, readExtensionJson } from "../shared/config.ts";
 
 const STATUS_KEY_DEEPSEEK = "deepseek";
 const STATUS_KEY_OLLAMA = "ollama";
@@ -40,7 +41,7 @@ const OLLAMA_PEAK_WINDOWS: ReadonlyArray<readonly [start: number, end: number]> 
 const OLLAMA_BOUNDARY_MINUTES = [0, 12 * 60, 18 * 60];
 const FETCH_TIMEOUT_MS = 5000;
 const STATE_PATH = join(getAgentDir(), "deepseek-offpeak.json");
-const CONFIG_PATH = join(getAgentDir(), "extensions", "deepseek-offpeak", "config.json");
+const CONFIG_PATH = extensionFilePath("deepseek-offpeak");
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const holidayUrl = (year: number): string =>
@@ -215,11 +216,7 @@ export default function deepseekOffpeak(pi: ExtensionAPI) {
   };
 
   const loadConfig = (): void => {
-    try {
-      enabled = parseConfig(JSON.parse(readFileSync(CONFIG_PATH, "utf8"))).enabled;
-    } catch {
-      enabled = true;
-    }
+    enabled = parseConfig(readExtensionJson("deepseek-offpeak")).enabled;
   };
 
   const writeConfig = (): void => {

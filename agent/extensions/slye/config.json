@@ -1,7 +1,7 @@
 {
   "enabled": false,
   "model": {
-    "provider": "ollama-cloud",
-    "id": "gpt-oss:120b"
+    "provider": "cpa",
+    "id": "neuralwatt/deepseek-v4.1-flash"
   }
 }

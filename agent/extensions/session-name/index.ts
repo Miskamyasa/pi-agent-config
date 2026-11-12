@@ -7,6 +7,7 @@
  * published as a status-bar item.
  */
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { resolveModel } from "../shared/model.ts";
 import { loadConfig } from "./config.ts";
 import {
   distillTitle,
@@ -16,7 +17,6 @@ import {
   lastUserText,
   oneLine,
   readProjectContext,
-  resolveModel,
 } from "./title.ts";
 
 /** Status key. The insertion order of this key fixes its slot in the status bar. */
@@ -41,22 +41,40 @@ export default function sessionName(pi: ExtensionAPI): void {
     titleStarted = true;
 
     const gen = titleGen;
-    const model = config ? resolveModel(extensionCtx.modelRegistry, config) : null;
 
     let title: string | null = null;
-    if (model && abort) {
-      const projectContext = await readProjectContext(extensionCtx.cwd);
-      title = await distillTitle({
-        registry: extensionCtx.modelRegistry,
-        model,
-        prompt: firstPrompt,
-        projectContext,
-        signal: abort.signal,
-      });
+    let failure: string | null = null;
+
+    if (!config) {
+      failure = 'session-name is off: set "model" in extensions/session-name/config.json';
+    } else {
+      const lookup = resolveModel(extensionCtx.modelRegistry, config);
+      if ("reason" in lookup) {
+        failure = `session-name: ${config.provider}/${config.id} ${lookup.reason}`;
+      } else if (abort) {
+        const projectContext = await readProjectContext(extensionCtx.cwd);
+        const outcome = await distillTitle({
+          registry: extensionCtx.modelRegistry,
+          model: lookup.model,
+          prompt: firstPrompt,
+          projectContext,
+          signal: abort.signal,
+        });
+        if (outcome.kind === "ok") {
+          title = outcome.title;
+        } else {
+          failure = `session-name: ${config.provider}/${config.id} failed: ${outcome.reason}`;
+        }
+      }
     }
 
-    // A shutdown, a session change, or a user rename discards this result.
-    if (gen !== titleGen || nameOwner !== "none") return;
+    // A shutdown or a session change discards this result.
+    if (gen !== titleGen) return;
+    // Distillation is best effort, but a failure must not look like a normal name.
+    if (failure !== null) extensionCtx.ui.notify(failure, "error");
+
+    // A user rename outranks the generated name.
+    if (nameOwner !== "none") return;
     const resolved = title ?? heuristicTitle(firstPrompt);
     if (resolved === "") {
       // An unusable prompt: let a later prompt try again.
