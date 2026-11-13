@@ -24,6 +24,7 @@ Download pi at [https://pi.dev/](https://pi.dev/).
 - `temperature` - per-model sampling temperature overrides for outgoing model requests.
 - `session-name` - distills the session name from the first user message, and shows the last user message in the status bar.
 - `enh` - `/enh <text>` fixes spelling and grammar with the configured model and puts the result in the prompt box.
+- `read-dedup` - answers a repeated read of an unchanged file with a short notice instead of a second copy of its content.
 
 ## License
 

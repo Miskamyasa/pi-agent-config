@@ -10,10 +10,10 @@ Before any work, restate the requested result and constraints.
 - Do not include implementation steps.
 - Wait for explicit user approval.
 
-Report `Missing Context` and stop if:
+Report `Missing Context` and stop if you cannot resolve:
 
-- a required owner, contract, source, or runtime mechanism is missing;
-- discovered information conflicts with a higher-priority instruction;
+- a required owner, contract, source, or runtime mechanism is missing.
+- discovered information conflicts with a higher-priority instruction.
 - an explicit boundary prevents the requested work.
 
 Do not use an assumption to override an explicit boundary.
