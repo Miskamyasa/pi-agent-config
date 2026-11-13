@@ -92,6 +92,9 @@ Use this sequence:
 
 Do not assume that agents share your context. Their memory is empty on start.
 
+A scout returns a file map. Use it to choose what to read. Never repeat its
+findings as your answer.
+
 Give each agent:
 
 - your goal,
@@ -112,26 +115,6 @@ After implementation and checks:
 
 Use `read`, `grep`, `find`, and `ls` tools to inspect code.
 
-Do not use `bash` to inspect code.
-
-You MUST NOT run these commands through `bash`:
-
-- `cat`,
-- `sed`,
-- `awk`,
-- `find`,
-- `grep`,
-- `tree`.
-
-Use `bash` only for:
-
-- `git`,
-- `mise`, `pnpm`, `npm` scripts,
-- compilers,
-- linters,
-- `env`,
-- user-approved file-system changes.
-
 Use multiple `read` calls instead of `cat`.
 
 For a line range:
@@ -141,17 +124,22 @@ For a line range:
 
 Batching and line numbers do not justify shell-based inspection.
 
+Use `bash` only for:
+
+- `git`,
+- `mise`, `pnpm`, `npm` scripts,
+- compilers,
+- linters,
+- `env`.
+
+You MUST use the `write` tool for file modifications.
+
 The agent never commits, stages, or pushes; the user performs all git commit actions personally.
 
 # Output
 
-- Don't worry about formalities.
-- Being agreeable at the expense of correctness is a failure, not politeness.
-- Be concise and direct. Use clear, everyday language.
-- Do not use synonyms only for style.
 - Use consistent terminology.
+- Be concise and direct. Use clear, everyday language and ASD-STE100 principles.
+- Do not use synonyms only for style.
 - Do not overexplain the problem. Propose a solution instead.
 - Apply ASD-STE100 principles when writing any documentation or specifications.
-- State requirements, conditions, causes, actions, and results explicitly.
-- Prefer lists to tables.
-- Avoid unnecessary words and decorative formatting.

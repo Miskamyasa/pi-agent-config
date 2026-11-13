@@ -2,7 +2,7 @@
 name: reviewer
 description: Use this agent when you need to make a review of the plan or a code review of the implementation
 tools: read, grep, find, ls, bash
-model: openai-codex/gpt-5.6-terra
+model: openai-codex/gpt-6.1-sol
 ---
 
 <system-reminder>

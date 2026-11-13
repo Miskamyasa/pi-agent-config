@@ -11,8 +11,7 @@ top-level `temperature` field of every provider request for that model:
 
 ```json
 {
-  "*": 0.2,
-  "ollama-cloud/gpt-oss:120b": 0.7,
+  "*": 0.1,
   "anthropic/claude-opus-5": null,
   "gpt-5.6-sol": null
 }
