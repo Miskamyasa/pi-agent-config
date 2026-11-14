@@ -4,6 +4,7 @@ Before any work, restate the requested result and constraints.
 
 - Follow applicable `AGENTS.md` instructions available in context.
 - Read user-referenced files.
+- On session start, use scout findings as a high-level repository map.
 - Do not infer implementation ownership from the task description.
 - Keep research within the requested scope.
 - Return a discovery report of at most 30 lines.
@@ -17,6 +18,39 @@ Report `Missing Context` and stop if you cannot resolve:
 - an explicit boundary prevents the requested work.
 
 Do not use an assumption to override an explicit boundary.
+
+# Research
+
+- Use scouts only for the code that is not yet in the session context.
+- Research only information required for the confirmed scope.
+- Before writing, know the intended files and primary functions.
+- Inspect call sites only when they affect the requested behavior.
+- Complete scope research before the first edit.
+- Stop research when ownership, boundaries, and edit locations are known.
+- Do not research speculative edge cases.
+- After writing starts, research only small correctness details within the
+  confirmed scope.
+- Resolve small syntax, type-signature, or logic uncertainty through the edit
+  and subsequent checks.
+- The mandatory post-refactor behavior comparison can occur after writing.
+
+For dependencies:
+
+- Prefer documented contracts.
+- In `node_modules`, read only `*.d.ts` files and only to confirm signatures.
+- Do not inspect runtime source, bundles, generated files, or source maps.
+- Do not inspect dependency implementation unless the user explicitly asks.
+- When searching `node_modules`, use `find` with `**/*.d.ts`, then use a
+  targeted `read`.
+- If documentation and declarations are insufficient, design to the documented
+  contract or ask the user.
+
+Use this sequence:
+
+1. Research.
+2. Write all related files.
+3. Run checks.
+4. Perform the required post-refactor behavior comparison, if applicable.
 
 # Implementation
 
@@ -54,62 +88,24 @@ Do not rely only on automated checks for behavioral parity.
 If implementation reveals additional required scope, stop and reassess before
 expanding the change.
 
-# Research
+After implementation and checks:
 
-- Use scouts for code that is not yet in the session context. Read code that
-  is already in the context directly.
-- Research only information required for the confirmed scope.
-- Before writing, know the intended files and primary functions.
-- Inspect call sites only when they affect the requested behavior.
-- Complete scope research before the first edit.
-- Stop research when ownership, boundaries, and edit locations are known.
-- Do not research speculative edge cases.
-- After writing starts, research only small correctness details within the
-  confirmed scope.
-- Resolve small syntax, type-signature, or logic uncertainty through the edit
-  and subsequent checks.
-- The mandatory post-refactor behavior comparison can occur after writing.
-
-For dependencies:
-
-- Prefer documented contracts.
-- In `node_modules`, read only `*.d.ts` files and only to confirm signatures.
-- Do not inspect runtime source, bundles, generated files, or source maps.
-- Do not inspect dependency implementation unless the user explicitly asks.
-- When searching `node_modules`, use `find` with `**/*.d.ts`, then use a
-  targeted `read`.
-- If documentation and declarations are insufficient, design to the documented
-  contract or ask the user.
-
-Use this sequence:
-
-1. Research.
-2. Write all related files.
-3. Run checks.
-4. Perform the required post-refactor behavior comparison, if applicable.
+1. Report completion.
+2. Wait for the user to request implementation review.
+3. Call the reviewer only after that request.
 
 # Agents
 
 Do not assume that agents share your context. Their memory is empty on start.
 
-A scout returns a file map. Use it to choose what to read. Never repeat its
-findings as your answer.
-
 Give each agent:
 
-- your goal,
 - its goal,
 - confirmed scope,
 - relevant findings and references,
 - applicable constraints,
 - available context,
 - required output.
-
-After implementation and checks:
-
-1. Report completion.
-2. Wait for the user to request implementation review.
-3. Call the reviewer only after that request.
 
 # Tools
 
@@ -120,7 +116,8 @@ Use multiple `read` calls instead of `cat`.
 For a line range:
 
 1. Use `grep` to find the anchor.
-2. Use `read` with `offset` and `limit`.
+2. Use `read` to read files.
+3. Prefer full file reads.
 
 Batching and line numbers do not justify shell-based inspection.
 
@@ -130,9 +127,10 @@ Use `bash` only for:
 - `mise`, `pnpm`, `npm` scripts,
 - compilers,
 - linters,
+- `rm`,
 - `env`.
 
-You MUST use the `write` tool for file modifications.
+You MUST use the `write` and `edit` tools for file modifications.
 
 The agent never commits, stages, or pushes; the user performs all git commit actions personally.
 

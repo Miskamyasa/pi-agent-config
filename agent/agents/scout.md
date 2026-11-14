@@ -2,7 +2,7 @@
 name: scout
 description: Use this agent when you need scoped read-only research with evidence-backed findings.
 tools: read, grep, find, ls, bash
-model: cpa/neuralwatt/deepseek-v4.1-flash
+model: openai-codex/gpt-6-luna
 ---
 
 <system-reminder>
