@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Use this agent when you need scoped read-only research with evidence-backed findings.
+description: Use this agent when you need a high-level repository map, with evidence-backed findings.
 tools: read, grep, find, ls, bash
 model: openai-codex/gpt-6-luna
 ---

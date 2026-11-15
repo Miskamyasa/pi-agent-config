@@ -7,7 +7,13 @@
  * tokens. A changed file, a different range, or an earlier result that left
  * the context (compaction) returns the real content.
  */
-import { isReadToolResult, type ExtensionAPI, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import {
+  estimateTokens,
+  isReadToolResult,
+  type ExtensionAPI,
+  type ExtensionContext,
+  type SessionEntry,
+} from "@earendil-works/pi-coding-agent";
 import { resolve } from "node:path";
 
 /** Marks a result this extension replaced. */
@@ -91,7 +97,36 @@ export function notice(read: PriorRead): string {
   );
 }
 
+export function savedTokens(entries: SessionEntry[]): number {
+  let total = 0;
+  for (const entry of entries) {
+    if (entry.type !== "message" || entry.message.role !== "toolResult" || entry.message.toolName !== "read") continue;
+    const details = entry.message.details;
+    if (!details || typeof details !== "object" || !("readDedup" in details)) continue;
+    const stats = details.readDedup;
+    if (!stats || typeof stats !== "object" || !("savedTokens" in stats)) continue;
+    const value = stats.savedTokens;
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) total += value;
+  }
+  return total;
+}
+
+export function formatSavings(tokens: number): string {
+  const amount = tokens < 1000 ? String(tokens) : `${(tokens / 1000).toFixed(1)}k`;
+  return `≈${amount} \udb80\ude36 `;
+}
+
 export default function readDedup(pi: ExtensionAPI): void {
+  function publish(ctx: ExtensionContext, additionalTokens = 0): void {
+    if (!ctx.hasUI) return;
+    const total = savedTokens(ctx.sessionManager.getBranch()) + additionalTokens;
+    ctx.ui.setStatus("read-dedup", ctx.ui.theme.fg("dim", formatSavings(total)));
+  }
+
+  pi.on("session_start", (_event, ctx) => publish(ctx));
+  pi.on("session_tree", (_event, ctx) => publish(ctx));
+  pi.on("session_shutdown", (_event, ctx) => ctx.ui.setStatus("read-dedup", undefined));
+
   pi.on("tool_result", (event, ctx) => {
     if (!isReadToolResult(event) || event.isError) return;
 
@@ -114,9 +149,21 @@ export default function readDedup(pi: ExtensionAPI): void {
 
     if (prior === undefined) return;
 
+    const content = [{ type: "text" as const, text: notice(prior) }];
+    const original = {
+      role: "toolResult" as const,
+      toolCallId: event.toolCallId,
+      toolName: "read",
+      content: event.content,
+      isError: false,
+      timestamp: 0,
+    };
+    const savings = Math.max(0, estimateTokens(original) - estimateTokens({ ...original, content }));
+    publish(ctx, savings);
+
     return {
-      content: [{ type: "text" as const, text: notice(prior) }],
-      details: undefined,
+      content,
+      details: { readDedup: { savedTokens: savings } },
     };
   });
 }

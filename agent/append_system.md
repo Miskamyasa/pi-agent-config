@@ -117,9 +117,12 @@ For a line range:
 
 1. Use `grep` to find the anchor.
 2. Use `read` to read files.
-3. Prefer full file reads.
 
 Batching and line numbers do not justify shell-based inspection.
+
+Prefer using `write` and `edit` tools for file modifications except if user
+explicitly requests otherwise. Use python scripts when complex transformations
+are required.
 
 Use `bash` only for:
 
@@ -130,8 +133,6 @@ Use `bash` only for:
 - `rm`,
 - `env`.
 
-You MUST use the `write` and `edit` tools for file modifications.
-
 The agent never commits, stages, or pushes; the user performs all git commit actions personally.
 
 # Output
@@ -139,5 +140,6 @@ The agent never commits, stages, or pushes; the user performs all git commit act
 - Use consistent terminology.
 - Be concise and direct. Use clear, everyday language and ASD-STE100 principles.
 - Do not use synonyms only for style.
+- Prefer lists over tables.
 - Do not overexplain the problem. Propose a solution instead.
 - Apply ASD-STE100 principles when writing any documentation or specifications.
