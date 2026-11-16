@@ -3,9 +3,10 @@
  * Local patched copy of @quartermaster-labs/pi-on-demand-context@0.3.0.
  *
  * Auto-loads CLAUDE.md / AGENTS.md when the model touches a directory
- * (bash `cd`, or read/edit/write/grep/ls/find). Injects once, durably,
- * as a steer message before the next model turn. Deduped against pi's
- * own startup loader.
+ * (bash `cd`, or read/edit/write/grep/ls/find). Injects once as a steer
+ * message before the next model turn. Deduped against pi's own startup
+ * loader; dedup marks are restored from the session branch on /reload,
+ * /fork, and /resume, so a kept conversation never gets a file twice.
  *
  * LOCAL PATCH: a context file read directly by the model is already in
  * the conversation as a tool result — it is marked seen and never injected.
@@ -15,7 +16,11 @@
  * Keys: workingDirOnly (default true).
  * Runtime toggle: /odc-working-dir-only on|off.
  */
-import type { ExtensionAPI, BuildSystemPromptOptions } from "@earendil-works/pi-coding-agent";
+import type {
+  BuildSystemPromptOptions,
+  ExtensionAPI,
+  SessionEntry,
+} from "@earendil-works/pi-coding-agent";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Text, type AutocompleteItem, type Component, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { readFile } from "node:fs/promises";
@@ -197,6 +202,54 @@ function markReadContextFiles(s: State, toolName: string, input: Record<string, 
   if (!CONTEXT_FILENAMES.includes(basename(p))) return;
   const abs = isAbsolute(p) ? p : resolve(s.launchDir, p);
   s.injected.add(pathKey(abs));
+}
+
+// Re-seed the dedup set from the active branch. /reload, /fork, and /resume
+// keep the conversation, so files already injected there (our custom
+// messages) or read directly (successful `read` calls on context files)
+// must not be injected again. Pure — exported for tests.
+export function restoreInjectedFromBranch(
+  entries: SessionEntry[],
+  injected: Set<string>,
+  baseDir: string,
+): void {
+  // read toolCall id → dedup key, resolved on the matching tool result so
+  // failed reads stay unmarked, like the live tool_result path.
+  const pendingReads = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.type === "custom_message") {
+      if (entry.customType !== "on-demand-context") continue;
+      const files = entry.details as ContextDetails | undefined;
+      if (!files || !Array.isArray(files.files)) continue;
+      for (const f of files.files) {
+        if (typeof f === "string") injected.add(pathKey(f));
+      }
+      continue;
+    }
+    if (entry.type !== "message") continue;
+    const msg = entry.message;
+    if (msg.role === "assistant") {
+      for (const c of msg.content) {
+        if (c.type !== "toolCall" || c.name !== "read") continue;
+        const raw = c.arguments?.path ?? c.arguments?.file_path;
+        if (typeof raw !== "string") continue;
+        const p = fromBashPath(raw);
+        if (!CONTEXT_FILENAMES.includes(basename(p))) continue;
+        const abs = isAbsolute(p) ? p : resolve(baseDir, p);
+        pendingReads.set(c.id, pathKey(abs));
+      }
+    } else if (msg.role === "toolResult") {
+      if (msg.isError) {
+        pendingReads.delete(msg.toolCallId);
+        continue;
+      }
+      const key = pendingReads.get(msg.toolCallId);
+      if (key !== undefined) {
+        injected.add(key);
+        pendingReads.delete(msg.toolCallId);
+      }
+    }
+  }
 }
 
 export async function discoverContextFiles(
@@ -493,9 +546,11 @@ export default function onDemandContext(pi: ExtensionAPI) {
   toggleCommand("working-dir-only", "workingDirOnly");
 
   // Fires on startup, /new, /resume, /fork, AND /reload — config edits apply
-  // on the next reload.
+  // on the next reload. /resume, /fork, and /reload keep the conversation, so
+  // restore dedup marks from the branch; /new has an empty branch (no-op).
   pi.on("session_start", (_event, ctx) => {
     state = initState();
     config = loadConfig(ctx.cwd, ctx.isProjectTrusted());
+    restoreInjectedFromBranch(ctx.sessionManager.getBranch(), state.injected, ctx.cwd);
   });
 }

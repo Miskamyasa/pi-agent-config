@@ -124,7 +124,7 @@ Prefer using `write` and `edit` tools for file modifications except if user
 explicitly requests otherwise. Use python scripts when complex transformations
 are required.
 
-Use `bash` only for:
+Prefer using `bash` only for:
 
 - `git`,
 - `mise`, `pnpm`, `npm` scripts,

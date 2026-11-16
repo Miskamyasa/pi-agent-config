@@ -31,7 +31,9 @@ Commands:
   with no argument to see the current value. The extension saves the new value
   to the global config.
 
-The state resets on startup, `/new`, `/resume`, `/fork`, and `/reload`. Config
+The state resets on startup, `/new`, `/resume`, `/fork`, and `/reload`. On
+`/resume`, `/fork`, and `/reload` the conversation stays, so the extension
+re-reads it and keeps the already-sent list; only `/new` starts empty. Config
 changes apply after the next reload.
 
 ## Configuration
