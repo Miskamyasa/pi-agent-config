@@ -3,17 +3,19 @@
 Stops pi from paying tokens twice for the same file content.
 
 The extension replaces the result of a repeated `read` with a short notice
-when the file has not changed since an earlier read in the same conversation.
-The earlier result is still in the model context, so a second copy adds
-nothing.
+when the requested content is already in the model context: the file has not
+changed since an earlier read in the same conversation, or the call reads a
+portion of a file that an earlier read already returned in full.
 
 ## How it works
 
 1. The model calls `read`.
 2. The extension compares the new result with earlier `read` results on the
    active branch.
-3. When one result has the same resolved path and the same text, and the model
-   still sees it, the extension replaces the new result with a notice:
+3. When one result has the same resolved path and the same text, or the new
+   call reads a portion of a file that an earlier full read already covered,
+   and the model still sees that earlier result, the extension replaces the
+   new result with a notice:
 
    ```
    [read-dedup] /path/to/file.ts is unchanged since your earlier read of the
@@ -26,9 +28,11 @@ nothing.
 
 ## When it returns the real content
 
-- The file changed.
-- The model asks for a different range. A read of lines 100-200 and a read of
-  lines 120-180 both stay in the conversation.
+- The file changed in the requested range.
+- The model asks for a range that no earlier full read covers, for example
+  past the tool's own truncation point. Two partial reads of different
+  ranges also both stay: a read of lines 100-200 and then a read of lines
+  120-180 are not deduplicated against each other.
 - The earlier result left the model context, for example after compaction.
 - The result is an image or has more than one content block.
 - The earlier read failed.

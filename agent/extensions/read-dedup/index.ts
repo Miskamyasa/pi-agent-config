@@ -4,8 +4,10 @@
  * When the model reads a file that is unchanged since an earlier read in the
  * same conversation, the new tool result becomes a short notice. The earlier
  * result is still in the model context, so a second copy would only add
- * tokens. A changed file, a different range, or an earlier result that left
- * the context (compaction) returns the real content.
+ * tokens. This also holds for a partial read of a file whose full text an
+ * earlier read already placed in the context. A changed file, a range not
+ * covered by an earlier full read, or an earlier result that left the context
+ * (compaction) returns the real content.
  */
 import {
   estimateTokens,
@@ -30,6 +32,22 @@ interface PriorRead {
 function numberArg(args: Record<string, unknown>, key: string): number | undefined {
   const value = args[key];
   return typeof value === "number" ? value : undefined;
+}
+
+/** A read with no offset and no limit asks for the whole file. */
+export function isFullRead(read: { offset?: number; limit?: number }): boolean {
+  return read.offset === undefined && read.limit === undefined;
+}
+
+/**
+ * Trailing continuation footer the read tool appends when a read stops
+ * before the end of the file. It is tool metadata, not file content, so the
+ * containment check must ignore it.
+ */
+const CONTINUATION_FOOTER = /\n\n\[[^\]]*Use offset=\d+ to continue\.\]$/;
+
+export function stripContinuationFooter(text: string): string {
+  return text.replace(CONTINUATION_FOOTER, "");
 }
 
 /** Text of a single-text-block result. Images and multi-block results return undefined. */
@@ -139,12 +157,15 @@ export default function readDedup(pi: ExtensionAPI): void {
     const cwd = ctx.sessionManager.getCwd();
     const path = resolve(cwd, rawPath);
     const visible = visibleReadIds(ctx.sessionManager.buildSessionProjection().messages);
+    const partial = numberArg(event.input, "offset") !== undefined || numberArg(event.input, "limit") !== undefined;
     const prior = collectPriorReads(ctx.sessionManager.getBranch(), cwd).find(
       (read) =>
         read.toolCallId !== event.toolCallId &&
         read.path === path &&
-        read.text === text &&
-        visible.has(read.toolCallId),
+        visible.has(read.toolCallId) &&
+        (read.text === text ||
+          // A portion of a file whose full text the model already holds.
+          (partial && text !== "" && isFullRead(read) && read.text.includes(stripContinuationFooter(text)))),
     );
 
     if (prior === undefined) return;
