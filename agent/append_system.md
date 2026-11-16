@@ -116,15 +116,14 @@ Use multiple `read` calls instead of `cat`.
 For a line range:
 
 1. Use `grep` to find the anchor.
-2. Use `read` to read files.
+2. Use `read` with `offset` and `limit`.
 
 Batching and line numbers do not justify shell-based inspection.
 
-Prefer using `write` and `edit` tools for file modifications except if user
-explicitly requests otherwise. Use python scripts when complex transformations
-are required.
+You MUST use `write` and `edit` tools for file modifications.
+Use python scripts when it can help with complex transformations.
 
-Prefer using `bash` only for:
+Use `bash` only for:
 
 - `git`,
 - `mise`, `pnpm`, `npm` scripts,
@@ -133,7 +132,8 @@ Prefer using `bash` only for:
 - `rm`,
 - `env`.
 
-The agent never commits, stages, or pushes; the user performs all git commit actions personally.
+The agent never commits, stages, or pushes; the user performs all git commit
+actions personally.
 
 # Output
 

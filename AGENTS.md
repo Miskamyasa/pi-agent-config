@@ -62,9 +62,9 @@ Conventions when editing or adding an extension:
 
 Custom extensions in this repo: `on-demand-context`, `subagent`, `slye`,
 `btw`, `cpa`, `deepseek-offpeak`, `temperature`, `session-name`, `enh`,
-`read-dedup`. The `pi-tool-display` folder holds only a `config.json` (the
-code is the npm package `pi-tool-display`, declared in `settings.json`
-`packages`).
+`read-dedup`, `read-sidebar`. The `pi-tool-display` folder holds only a
+`config.json` (the code is the npm package `pi-tool-display`, declared in
+`settings.json` `packages`).
 
 ## Config & state files
 

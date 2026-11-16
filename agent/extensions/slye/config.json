@@ -1,7 +1,7 @@
 {
   "enabled": false,
   "model": {
-    "provider": "cpa",
-    "id": "celeris-1"
+    "provider": "ollama-cloud",
+    "id": "gemma4:31b"
   }
 }

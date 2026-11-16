@@ -25,6 +25,7 @@ Download pi at [https://pi.dev/](https://pi.dev/).
 - `session-name` - distills the session name from the first user message, and shows the last user message in the status bar.
 - `enh` - `/enh <text>` fixes spelling and grammar with the configured model and puts the result in the prompt box.
 - `read-dedup` - answers a repeated read of an unchanged file with a short notice instead of a second copy, and shows the estimated tokens saved.
+- `read-sidebar` - `/files` toggles a right-side overlay listing the files the agent read this session, largest token estimate first.
 
 ## License
 
