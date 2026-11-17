@@ -162,16 +162,21 @@ class ReadSidebar implements Component {
   invalidate(): void {}
 }
 
-/** Zero-height controller used only to capture the TUI instance. */
+/** Zero-height widget used only to capture the TUI instance. */
 const BOOTSTRAP_CONTROLLER: Component = {
   render: () => [],
   invalidate: () => {},
 };
 
+/** Widget key for the throwaway TUI capture; removed immediately. */
+const CAPTURE_WIDGET_KEY = "read-sidebar.capture";
+
 export default function readSidebar(pi: ExtensionAPI): void {
   const reads = new Map<string, ReadRecord>();
   let tui: TUI | null = null;
   let handle: OverlayHandle | null = null;
+  // Intended visibility. The overlay itself can disappear without our consent.
+  let visible = false;
 
   function record(path: string, tokens: number): void {
     const existing = reads.get(path);
@@ -190,27 +195,55 @@ export default function readSidebar(pi: ExtensionAPI): void {
     tui?.requestRender();
   }
 
-  /** The TUI is only reachable through a component factory; grab it once. */
-  async function ensureTui(ctx: ExtensionCommandContext): Promise<TUI | null> {
+  /**
+   * The TUI is only reachable through a UI component factory. A zero-height
+   * widget avoids `ctx.ui.custom`, whose cleanup hides the topmost overlay and
+   * could close an unrelated overlay instead of a throwaway component.
+   */
+  function ensureTui(ctx: ExtensionCommandContext): TUI | null {
     if (tui) return tui;
-    await ctx.ui.custom<void>(
-      (captured, _theme, _keybindings, done) => {
-        tui = captured;
-        // Resolves before the controller mounts, so nothing flashes on screen.
-        done();
-        return BOOTSTRAP_CONTROLLER;
-      },
-      { overlay: true },
-    );
+    ctx.ui.setWidget(CAPTURE_WIDGET_KEY, (captured) => {
+      tui = captured;
+      return BOOTSTRAP_CONTROLLER;
+    });
+    ctx.ui.setWidget(CAPTURE_WIDGET_KEY, undefined);
     return tui;
   }
 
-  pi.on("session_start", (_event, ctx) => rebuild(ctx.sessionManager.getBranch(), ctx.sessionManager.getCwd()));
-  pi.on("session_tree", (_event, ctx) => rebuild(ctx.sessionManager.getBranch(), ctx.sessionManager.getCwd()));
-  pi.on("session_shutdown", () => {
+  function hideSidebar(): void {
     handle?.hide();
     handle = null;
+    visible = false;
+  }
+
+  function showSidebar(ctx: ExtensionCommandContext, captured: TUI): void {
+    hideSidebar();
+    handle = captured.showOverlay(new ReadSidebar(captured, ctx.ui.theme, reads), {
+      nonCapturing: true,
+      anchor: "top-right",
+      width: PANEL_WIDTH,
+      margin: { right: 1 },
+      visible: (termWidth) => termWidth >= MIN_TERMINAL_WIDTH,
+    });
+    visible = true;
+  }
+
+  /**
+   * `getBounds()` returns undefined once the overlay leaves the stack. Another
+   * overlay's `ctx.ui.custom` cleanup hides the topmost overlay, which can be
+   * this one, so a cached handle alone cannot prove the sidebar is still shown.
+   */
+  function isOnScreen(): boolean {
+    return visible && handle !== null && handle.getBounds() !== undefined;
+  }
+
+  pi.on("session_start", (_event, ctx) => {
+    // The UI reset hides only the topmost overlay; drop any surviving sidebar.
+    hideSidebar();
+    rebuild(ctx.sessionManager.getBranch(), ctx.sessionManager.getCwd());
   });
+  pi.on("session_tree", (_event, ctx) => rebuild(ctx.sessionManager.getBranch(), ctx.sessionManager.getCwd()));
+  pi.on("session_shutdown", () => hideSidebar());
 
   pi.on("tool_result", (event, ctx) => {
     if (!isReadToolResult(event) || event.isError) return;
@@ -237,21 +270,18 @@ export default function readSidebar(pi: ExtensionAPI): void {
         return;
       }
 
-      const captured = await ensureTui(ctx);
+      const captured = ensureTui(ctx);
       if (!captured) return;
 
-      if (handle) {
-        handle.setHidden(!handle.isHidden());
+      if (isOnScreen()) {
+        hideSidebar();
         return;
       }
-
-      handle = captured.showOverlay(new ReadSidebar(captured, ctx.ui.theme, reads), {
-        nonCapturing: true,
-        anchor: "top-right",
-        width: PANEL_WIDTH,
-        margin: { right: 1 },
-        visible: (termWidth) => termWidth >= MIN_TERMINAL_WIDTH,
-      });
+      if (captured.terminal.columns < MIN_TERMINAL_WIDTH) {
+        ctx.ui.notify(`/files needs a terminal at least ${MIN_TERMINAL_WIDTH} columns wide`, "warning");
+        return;
+      }
+      showSidebar(ctx, captured);
     },
   });
 }
