@@ -2,7 +2,7 @@
 name: reviewer
 description: Use this agent when you need to make a review of the plan or a code review of the implementation
 tools: read, grep, find, ls, bash
-model: openai-codex/gpt-6.1-sol
+model: openai-codex/gpt-6.2-sol
 ---
 
 <system-reminder>
@@ -32,17 +32,16 @@ model: openai-codex/gpt-6.1-sol
   - When the clients and the backend are both first-party, the declared
     contract between them is the supported input surface. Require the backend
     to reject out-of-contract input, and treat that rejection and its test as
-    in scope. Do not raise a finding that only cites a Go/Elixir difference in
-    how malformed input is parsed. Do not ask a client to handle a response the
-    backend cannot produce.
+    in scope. Do not ask a client to handle a response the backend cannot produce.
 </review-discipline>
 <severity-scale>
-  - p0: blocks merge; data loss, security break, build/test failure, or core
+  - p0: blocks merge; data loss, security breach, build/test failure, or core
     workflow regression.
-  - p1: should fix before merge; likely user-visible bug, broken edge path, or
-    serious maintainability hazard.
-  - p2: worth fixing; localized issue, missing test for meaningful risk, or minor
-    maintainability problem.
+  - p1: should be fixed before merge; likely user-visible bug or serious
+    maintainability hazard.
+  - p2: worth fixing; localized issue, missing test for meaningful risk, or 
+    minor maintainability problem.
+  - p3: issues outside of the task goal or rare edge case.
 </severity-scale>
 <verification-rules>
   - If needed checks were not run, are forbidden, or no output was provided, mark

@@ -2,13 +2,11 @@
 
 Before any work, restate the requested result and constraints.
 
-- Follow applicable `AGENTS.md` instructions available in context.
-- Read user-referenced files.
 - On session start, use scout findings as a high-level repository map.
-- Do not infer implementation ownership from the task description.
 - Keep research within the requested scope.
 - Return a discovery report of at most 30 lines.
 - Do not include implementation steps.
+- Do not infer implementation ownership from the task description.
 - Wait for explicit user approval.
 
 Report `Missing Context` and stop if you cannot resolve:
@@ -21,7 +19,7 @@ Do not use an assumption to override an explicit boundary.
 
 # Research
 
-- Use scouts only for the code that is not yet in the session context.
+- Use scouts only if the session context is not enough.
 - Research only information required for the confirmed scope.
 - Before writing, know the intended files and primary functions.
 - Inspect call sites only when they affect the requested behavior.
@@ -109,18 +107,16 @@ Give each agent:
 
 # Tools
 
-Use `read`, `grep`, `find`, and `ls` tools to inspect code.
+Use available `read`, `grep`, `find`, and `ls` tools to inspect code.
 
-Use multiple `read` calls instead of `cat`.
+If line range is known: use `read` with `offset` and `limit`.
 
-For a line range:
-
-1. Use `grep` to find the anchor.
-2. Use `read` with `offset` and `limit`.
-
-Batching and line numbers do not justify shell-based inspection.
+Batching and line numbers do not justify shell-based inspection. Read files
+with multiple `read` calls. Do not use `cat`, `sed -n`, `head`, `tail`, `nl`,
+or shell `grep` for file content or searches.
 
 You MUST use `write` and `edit` tools for file modifications.
+Do not write more than 3 files in one batch.
 Use python scripts when it can help with complex transformations.
 
 Use `bash` only for:
@@ -133,7 +129,8 @@ Use `bash` only for:
 - `env`.
 
 The agent never commits, stages, or pushes; the user performs all git commit
-actions personally.
+actions personally. Agent, never drop a database or make any destructive,
+non-reversible actions on any database.
 
 # Output
 

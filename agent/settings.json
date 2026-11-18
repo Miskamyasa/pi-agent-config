@@ -14,11 +14,11 @@
   "defaultTools": [],
   "hideThinkingBlock": true,
   "enabledModels": [
-    "openai-codex/gpt-6.1-sol",
     "cpa/ds/deepseek-v4.1-flash",
     "cpa/nube/deepseek-v4.1-flash",
     "cpa/nw/deepseek-v4.1-flash",
-    "openai-codex/gpt-6-astra"
+    "cpa/gpt-6.2-sol",
+    "cpa/gpt-6.2-astra"
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,
