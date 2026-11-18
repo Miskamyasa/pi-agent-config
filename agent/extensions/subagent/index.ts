@@ -13,6 +13,7 @@
  * Uses JSON mode to capture structured output from subagents.
  */
 import { spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -24,7 +25,9 @@ import {
 	defineTool,
 	type ExtensionAPI,
 	formatSize,
+	getAgentDir,
 	getMarkdownTheme,
+	SessionManager,
 	truncateHead,
 } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
@@ -35,6 +38,8 @@ const FULL_BUDGET = { maxLines: DEFAULT_MAX_LINES, maxBytes: DEFAULT_MAX_BYTES }
 const MAX_PARALLEL_TASKS = 8;
 const MAX_CONCURRENCY = 4;
 const COLLAPSED_ITEM_COUNT = 10;
+const SUBAGENT_SESSION_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
+const activeSubagentSessions = new Set<string>();
 
 function formatTokens(count: number): string {
 	if (count < 1000) return count.toString();
@@ -166,6 +171,13 @@ interface SubagentDetails {
 	agentScope: AgentScope;
 	projectAgentsDir: string | null;
 	results: SingleResult[];
+	sessionId?: string;
+}
+
+interface SubagentSession {
+	id: string;
+	dir: string;
+	file?: string;
 }
 
 function getFinalOutput(messages: Message[]): string {
@@ -279,6 +291,7 @@ async function runSingleAgent(
 	signal: AbortSignal | undefined,
 	onUpdate: OnUpdateCallback | undefined,
 	makeDetails: (results: SingleResult[]) => SubagentDetails,
+	session?: SubagentSession,
 ): Promise<SingleResult> {
 	const agent = agents.find((a) => a.name === agentName);
 
@@ -296,7 +309,14 @@ async function runSingleAgent(
 		};
 	}
 
-	const args: string[] = ["--mode", "json", "-p", "--no-session"];
+	const args: string[] = ["--mode", "json", "-p"];
+	if (session) {
+		args.push("--session-dir", session.dir);
+		if (session.file) args.push("--session", session.file);
+		else args.push("--session-id", session.id);
+	} else {
+		args.push("--no-session");
+	}
 	if (agent.model) args.push("--model", agent.model);
 	if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
@@ -339,7 +359,7 @@ async function runSingleAgent(
 			}
 		}
 
-		args.push(`Task: ${task}`);
+		args.push(session?.file ? `Follow-up: ${task}` : `Task: ${task}`);
 		let wasAborted = false;
 
 		const exitCode = await new Promise<number>((resolve) => {
@@ -460,7 +480,9 @@ const AgentScopeSchema = StringEnum(["user", "project", "both"] as const, {
 
 const SubagentParams = Type.Object({
 	agent: Type.Optional(Type.String({ description: "Name of the agent to invoke (for single mode)" })),
-	task: Type.Optional(Type.String({ description: "Task to delegate (for single mode)" })),
+	task: Type.Optional(Type.String({ description: "Task or follow-up to delegate (for single mode)" })),
+	saveSession: Type.Optional(Type.Boolean({ description: "Start a saved session for a user-level agent in single mode." })),
+	sessionId: Type.Optional(Type.String({ description: "Resume a saved session for the same agent with task as the follow-up. Omit saveSession." })),
 	tasks: Type.Optional(Type.Array(TaskItem, { description: "Array of {agent, task} for parallel execution" })),
 	chain: Type.Optional(Type.Array(ChainItem, { description: "Array of {agent, task} for sequential execution" })),
 	agentScope: Type.Optional(AgentScopeSchema),
@@ -473,6 +495,7 @@ const SubagentParams = Type.Object({
 const BASE_SUBAGENT_DESCRIPTION = [
 	"Delegate tasks to specialized subagents with isolated context.",
 	"Modes: single (agent + task), parallel (tasks array), chain (sequential with {previous} placeholder).",
+	"For a user-level agent, set saveSession to start a saved single run. Resume with the same agent name, the returned sessionId, and a follow-up task.",
 	'Default agent scope is "user" (from $PI_CODING_AGENT_DIR/agents or ~/.pi/agent/agents).',
 	'To enable project-local agents in .pi/agents, set agentScope: "both" (or "project").',
 	`Returns each agent's full final report, capped at ${DEFAULT_MAX_LINES} lines / ${formatSize(DEFAULT_MAX_BYTES)}`,
@@ -538,6 +561,16 @@ export default function (pi: ExtensionAPI) {
 					],
 					details: makeDetails("single")([]),
 				};
+			}
+
+			const usesSavedSession = params.saveSession || params.sessionId !== undefined;
+			if (usesSavedSession) {
+				if (!hasSingle || agentScope !== "user") {
+					throw new Error("Saved sessions are available only for user-level agents in single mode.");
+				}
+				if (params.sessionId !== undefined && (params.saveSession || !SUBAGENT_SESSION_ID.test(params.sessionId))) {
+					throw new Error("To resume, pass a valid subagent session ID without saveSession.");
+				}
 			}
 
 			if ((agentScope === "project" || agentScope === "both") && confirmProjectAgents && ctx.hasUI) {
@@ -729,36 +762,69 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			if (params.agent && params.task) {
-				const result = await runSingleAgent(
-					ctx.cwd,
-					agents,
-					params.agent,
-					params.task,
-					params.cwd,
-					undefined,
-					signal,
-					onUpdate,
-					makeDetails("single"),
-				);
-				const isError = result.exitCode !== 0 || result.stopReason === "error" || result.stopReason === "aborted";
-				if (isError) {
+				let session: SubagentSession | undefined;
+				let cwd = params.cwd;
+				if (usesSavedSession) {
+					const agentKey = createHash("sha256").update(params.agent).digest("hex");
+					const sessionsRoot = path.join(getAgentDir(), "sessions");
+					let dir = path.join(sessionsRoot, "subagent", agentKey);
+					const id = params.sessionId ?? randomUUID();
+					if (activeSubagentSessions.has(id)) throw new Error(`Subagent session ${id} is already running.`);
+					if (params.sessionId) {
+						let file = SessionManager.findById(ctx.cwd, id, dir);
+						if (!file && params.agent === "worker") {
+							// Only the prototype worker can resume sessions in the old directory.
+							dir = path.join(sessionsRoot, "subagent-worker");
+							file = SessionManager.findById(ctx.cwd, id, dir);
+						}
+						if (!file) throw new Error(`Subagent session ${id} not found for agent "${params.agent}".`);
+						const savedCwd = SessionManager.open(file, dir).getHeader()?.cwd;
+						if (!savedCwd) throw new Error(`Subagent session ${id} has no working directory.`);
+						if (cwd !== undefined && path.resolve(cwd) !== savedCwd) {
+							throw new Error(`Subagent session ${id} must resume in ${savedCwd}.`);
+						}
+						cwd = savedCwd;
+						session = { id, dir, file };
+					} else {
+						fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+						session = { id, dir };
+					}
+					activeSubagentSessions.add(id);
+				}
+
+				let result: SingleResult;
+				try {
+					result = await runSingleAgent(
+						ctx.cwd,
+						agents,
+						params.agent,
+						params.task,
+						cwd,
+						undefined,
+						signal,
+						onUpdate,
+						makeDetails("single"),
+						session,
+					);
+				} finally {
+					if (session) activeSubagentSessions.delete(session.id);
+				}
+
+				const details = makeDetails("single")([result]);
+				if (session && SessionManager.findById(ctx.cwd, session.id, session.dir)) details.sessionId = session.id;
+				const sessionInfo = details.sessionId ? `Subagent session ID: ${details.sessionId}\n\n` : "";
+				if (isFailedResult(result)) {
 					const errorMsg =
 						result.errorMessage || result.stderr || getFinalOutput(result.messages) || "(no output)";
 					return {
-						content: [{ type: "text", text: `Agent ${result.stopReason || "failed"}: ${errorMsg}` }],
-						details: makeDetails("single")([result]),
+						content: [{ type: "text", text: `${sessionInfo}Agent ${result.stopReason || "failed"}: ${errorMsg}` }],
+						details,
 						isError: true,
 					};
 				}
-				return {
-					content: [
-						{
-							type: "text",
-							text: capForLLM(getFinalOutput(result.messages) || "(no output)", result.agent, FULL_BUDGET),
-						},
-					],
-					details: makeDetails("single")([result]),
-				};
+				if (session && !details.sessionId) throw new Error(`Subagent session ${session.id} was not saved.`);
+				const report = capForLLM(getFinalOutput(result.messages) || "(no output)", result.agent, FULL_BUDGET);
+				return { content: [{ type: "text", text: sessionInfo + report }], details };
 			}
 
 			const available = agents.map((a) => `${a.name} (${a.source})`).join(", ") || "none";
@@ -849,6 +915,7 @@ export default function (pi: ExtensionAPI) {
 					let header = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}${theme.fg("muted", ` (${r.agentSource})`)}`;
 					if (isError && r.stopReason) header += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
 					container.addChild(new Text(header, 0, 0));
+					if (details.sessionId) container.addChild(new Text(`Subagent session ID: ${details.sessionId}`, 0, 0));
 					if (isError && r.errorMessage)
 						container.addChild(new Text(theme.fg("error", `Error: ${r.errorMessage}`), 0, 0));
 					container.addChild(new Spacer(1));
@@ -883,6 +950,7 @@ export default function (pi: ExtensionAPI) {
 				}
 
 				let text = `${icon} ${theme.fg("toolTitle", theme.bold(r.agent))}${theme.fg("muted", ` (${r.agentSource})`)}`;
+				if (details.sessionId) text += `\n${theme.fg("muted", `Subagent session ID: ${details.sessionId}`)}`;
 				if (isError && r.stopReason) text += ` ${theme.fg("error", `[${r.stopReason}]`)}`;
 				if (isError && r.errorMessage) text += `\n${theme.fg("error", `Error: ${r.errorMessage}`)}`;
 				else if (displayItems.length === 0) text += `\n${theme.fg("muted", "(no output)")}`;
