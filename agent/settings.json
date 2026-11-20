@@ -7,7 +7,10 @@
   "theme": "e-ink",
   "tuiMode": "fullscreen",
   "enableInstallTelemetry": true,
-  "packages": ["npm:pi-ollama-cloud", "npm:pi-tool-display"],
+  "packages": [
+    "npm:pi-ollama-cloud",
+    "npm:pi-tool-display"
+  ],
   "defaultTools": [],
   "hideThinkingBlock": true,
   "enabledModels": [
@@ -15,7 +18,8 @@
     "cpa/nube/deepseek-v4.1-flash",
     "cpa/nw/deepseek-v4.1-flash",
     "cpa/gpt-6.2-sol",
-    "cpa/gpt-6.1-terra"
+    "cpa/gpt-6.1-terra",
+    "cpa/gpt-6.2-astra"
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,

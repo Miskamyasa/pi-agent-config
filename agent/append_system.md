@@ -71,18 +71,6 @@ Do not implement until the user explicitly requests implementation.
 - Fix check failures only if caused by this task and fixable within
   scope. Otherwise, report and stop.
 
-For a mechanical refactor, compare old and new behavior after the edit. Verify:
-
-- inputs and return values,
-- error paths,
-- side effects,
-- cleanup,
-- state changes,
-- refresh or refetch behavior,
-- asynchronous flow.
-
-Do not rely only on automated checks for behavioral parity.
-
 If implementation reveals additional required scope, stop and reassess before
 expanding the change.
 
@@ -109,15 +97,11 @@ Give each agent:
 
 Use available `read`, `grep`, `find`, and `ls` tools to inspect code.
 
-If line range is known: use `read` with `offset` and `limit`.
+Batching does not justify shell-based inspection. Read files with multiple
+`read` calls. Do not use `cat`, `sed -n`, `head`, `tail`, `nl`, or shell `grep`
+for file content or searches.
 
-Batching and line numbers do not justify shell-based inspection. Read files
-with multiple `read` calls. Do not use `cat`, `sed -n`, `head`, `tail`, `nl`,
-or shell `grep` for file content or searches.
-
-You MUST use `write` and `edit` tools for file modifications.
-Do not write more than 3 files in one batch.
-Use python scripts when it can help with complex transformations.
+Use `write` and `edit` tools for file modifications.
 
 Use `bash` only for:
 
@@ -130,7 +114,7 @@ Use `bash` only for:
 
 The agent never commits, stages, or pushes; the user performs all git commit
 actions personally. Agent, never drop a database or make any destructive,
-non-reversible actions on any database.
+non-reversible actions on any database, even with user approval.
 
 # Output
 
