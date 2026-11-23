@@ -1,10 +1,10 @@
 /**
  * Read sidebar.
  *
- * `/files` toggles a persistent right-side overlay listing every file the
- * read tool returned in this session, largest token estimate first. The
- * overlay never takes keyboard focus, so typing keeps working while it is
- * visible. It spans 80% of the terminal height, sticks to the top, and
+ * `/files` toggles a persistent right-side overlay listing files with read
+ * results retained in the current context, largest token estimate first.
+ * The overlay never takes keyboard focus, so typing keeps working while it
+ * is visible. It spans 40% of the terminal height, sticks to the top, and
  * keeps the prompt bar clear.
  */
 import {
@@ -12,13 +12,14 @@ import {
   isReadToolResult,
   type ExtensionAPI,
   type ExtensionCommandContext,
-  type SessionEntry,
+  type ExtensionContext,
+  type SessionProjection,
   type Theme,
 } from "@earendil-works/pi-coding-agent";
 import { basename, dirname, resolve } from "node:path";
 import { truncateToWidth, visibleWidth, type Component, type OverlayHandle, type TUI } from "@earendil-works/pi-tui";
 
-/** One file the read tool returned at least once this session. */
+/** One file with a successful read result in the current context. */
 export interface ReadRecord {
   path: string;
   /** Number of successful reads. */
@@ -50,15 +51,12 @@ export interface CollectedRead {
   tokens: number;
 }
 
-/** Successful read calls on the branch, in read order, with token estimates. */
-export function collectReads(entries: SessionEntry[], cwd: string): CollectedRead[] {
+/** Successful reads in projected context, in read order, with token estimates. */
+export function collectReads(messages: SessionProjection["messages"], cwd: string): CollectedRead[] {
   const calls = new Map<string, string>();
   const reads: CollectedRead[] = [];
 
-  for (const entry of entries) {
-    if (entry.type !== "message") continue;
-    const message = entry.message;
-
+  for (const message of messages) {
     if (message.role === "assistant") {
       for (const block of message.content) {
         if (block.type === "toolCall" && block.name === "read" && typeof block.arguments.path === "string") {
@@ -119,7 +117,7 @@ class ReadSidebar implements Component {
     const listRows = Math.max(1, height - CHROME_ROWS);
     const content: string[] = [];
     if (all.length === 0) {
-      content.push(th.fg("dim", " No files read yet"));
+      content.push(th.fg("dim", " No read results in context"));
     } else {
       // Basenames appearing more than once get a parent-folder suffix.
       const seen = new Map<string, number>();
@@ -189,9 +187,10 @@ export default function readSidebar(pi: ExtensionAPI): void {
     }
   }
 
-  function rebuild(entries: SessionEntry[], cwd: string): void {
+  function rebuild(ctx: ExtensionContext): void {
+    const messages = ctx.sessionManager.buildSessionProjection().messages;
     reads.clear();
-    for (const read of collectReads(entries, cwd)) record(read.path, read.tokens);
+    for (const read of collectReads(messages, ctx.sessionManager.getCwd())) record(read.path, read.tokens);
     tui?.requestRender();
   }
 
@@ -240,9 +239,10 @@ export default function readSidebar(pi: ExtensionAPI): void {
   pi.on("session_start", (_event, ctx) => {
     // The UI reset hides only the topmost overlay; drop any surviving sidebar.
     hideSidebar();
-    rebuild(ctx.sessionManager.getBranch(), ctx.sessionManager.getCwd());
+    rebuild(ctx);
   });
-  pi.on("session_tree", (_event, ctx) => rebuild(ctx.sessionManager.getBranch(), ctx.sessionManager.getCwd()));
+  pi.on("session_tree", (_event, ctx) => rebuild(ctx));
+  pi.on("session_compact", (_event, ctx) => rebuild(ctx));
   pi.on("session_shutdown", () => hideSidebar());
 
   pi.on("tool_result", (event, ctx) => {
@@ -263,7 +263,7 @@ export default function readSidebar(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("files", {
-    description: "Toggle the read-files sidebar (by token estimate)",
+    description: "Toggle files read in current context (by token estimate)",
     handler: async (_args: string, ctx: ExtensionCommandContext) => {
       if (ctx.mode !== "tui") {
         ctx.ui.notify("/files needs interactive mode", "error");

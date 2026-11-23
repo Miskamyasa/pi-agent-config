@@ -2,7 +2,7 @@
   "lastChangelogVersion": "0.87.1",
   "defaultProvider": "cpa",
   "defaultModel": "nube/deepseek-v4.1-flash",
-  "defaultThinkingLevel": "max",
+  "defaultThinkingLevel": "high",
   "quietStartup": true,
   "theme": "e-ink",
   "tuiMode": "fullscreen",
@@ -14,9 +14,8 @@
     "cpa/ds/deepseek-v4.1-flash",
     "cpa/nube/deepseek-v4.1-flash",
     "cpa/nw/deepseek-v4.1-flash",
-    "cpa/gpt-6.2-sol",
-    "cpa/gpt-6.1-terra",
-    "cpa/gpt-6.2-astra"
+    "cpa/gpt-6.2-astra",
+    "cpa/gpt-6.1-sol"
   ],
   "enableSkillCommands": false,
   "showHardwareCursor": false,
