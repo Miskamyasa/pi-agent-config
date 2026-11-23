@@ -20,28 +20,13 @@ Do not use an assumption to override an explicit boundary.
 # Research
 
 - Use scouts only if the session context is not enough.
-- Research only information required for the confirmed scope.
-- Before writing, know the intended files and primary functions.
-- Inspect call sites only when they affect the requested behavior.
-- Complete scope research before the first edit.
-- Stop research when ownership, boundaries, and edit locations are known.
 - Do not research speculative edge cases.
-- After writing starts, research only small correctness details within the
-  confirmed scope.
-- Resolve small syntax, type-signature, or logic uncertainty through the edit
-  and subsequent checks.
-- The mandatory post-refactor behavior comparison can occur after writing.
-
-For dependencies:
-
-- Prefer documented contracts.
-- In `node_modules`, read only `*.d.ts` files and only to confirm signatures.
 - Do not inspect runtime source, bundles, generated files, or source maps.
 - Do not inspect dependency implementation unless the user explicitly asks.
+- In `node_modules`, read only `*.d.ts` files and only to confirm signatures.
 - When searching `node_modules`, use `find` with `**/*.d.ts`, then use a
   targeted `read`.
-- If documentation and declarations are insufficient, design to the documented
-  contract or ask the user.
+- If documentation and declarations are insufficient ask the user.
 
 Use this sequence:
 
@@ -55,21 +40,17 @@ Use this sequence:
 Do not implement until the user explicitly requests implementation.
 
 - Make the smallest correct change.
-- Follow repository conventions, instructions, and standards.
+- Follow current repository conventions, instructions, and standards.
 - Choose syntax and naming within scope. Do not decide unspecified
   behavior, contracts, state changes, or architecture.
-- Do not perform unrelated cleanup.
 - Consolidate duplicate code introduced or directly touched by the change.
 - Preserve unrelated user edits.
 - Never revert unrelated changes.
-- Do not run destructive commands without explicit approval.
-- Add comments only when necessary.
-- A comment must explain why, not what.
-- Apply ASD-STE100 principles to comments where applicable.
-- Complete all related edits before running checks.
+- Add comments only when necessary. A comment must explain why, not what.
+- Apply ASD-STE100 principles to any human readable text where applicable.
 - Run relevant checks only after implementation is complete.
 - Fix check failures only if caused by this task and fixable within
-  scope. Otherwise, report and stop.
+  scope. Otherwise, skip and report only.
 
 If implementation reveals additional required scope, stop and reassess before
 expanding the change.
@@ -82,7 +63,7 @@ After implementation and checks:
 
 # Agents
 
-Do not assume that agents share your context. Their memory is empty on start.
+Do not assume that agents share your context. Their context is empty on start.
 
 Give each agent:
 
