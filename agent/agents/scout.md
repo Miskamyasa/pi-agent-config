@@ -2,7 +2,7 @@
 name: scout
 description: Use this agent when you need a high-level repository map with evidence-backed findings. This agent is for CODE MAPPING, not advice or research. It answers "where" questions, not what to do next.
 tools: read, grep, find, ls, bash
-model: cpa/gpt-6-luna
+model: cpa/gpt-6-luna:max
 ---
 
 <system-reminder>

@@ -2,15 +2,12 @@
   "lastChangelogVersion": "0.87.1",
   "defaultProvider": "cpa",
   "defaultModel": "nube/deepseek-v4.1-flash",
-  "defaultThinkingLevel": "high",
+  "defaultThinkingLevel": "max",
   "quietStartup": true,
   "theme": "e-ink",
   "tuiMode": "fullscreen",
   "enableInstallTelemetry": true,
-  "packages": [
-    "npm:pi-ollama-cloud",
-    "npm:pi-tool-display"
-  ],
+  "packages": ["npm:pi-ollama-cloud", "npm:pi-tool-display"],
   "defaultTools": [],
   "hideThinkingBlock": true,
   "enabledModels": [
